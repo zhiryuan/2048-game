@@ -1,0 +1,40 @@
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 敏感信息
+.env
+.secrets
+
+# 打包文件
+dist/
+build/
+*.egg-info/
+
+# 测试和覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 日志和数据库
+*.log
+*.db
+*.sqlite3
