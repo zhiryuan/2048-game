@@ -28,6 +28,8 @@ class ItemBox:
         self.text = text
         self.start = (0, 0)
         self.end = (0, 0)
+        self.startsize = (0, 0)
+        self.endsize = (0, 0)
         self.endstate = anips
         self.state = self.endstate # 0:8, 20ms # auto animation
         self.bgcolor = bgcolor
@@ -41,6 +43,7 @@ class ItemBox:
         self.text_rect = None
         self.updating = False
         self.changed = False
+        self.resized = False
         # self._vel = (0, 0)
     def renewdisplay(self):
         self.display = pygame.Surface(self.size, pygame.SRCALPHA)
@@ -58,10 +61,13 @@ class ItemBox:
     def nextstate(self):
         if self.static: return
         if not self.dynamic: return
-        if self.state == self.endstate: return
+        if self.state == self.endstate: self.resized = False; return
         self.state += 1
         vec = _ldiv(_mul(_sub(self.end, self.start), self.state), anips)
         self.topleft = _add(self.start, vec)
+        if self.resized:
+            vec2 = _ldiv(_mul(_sub(self.endsize, self.startsize), self.state), anips)
+            self.size = _add(self.startsize, vec2)
         self.updating = True
 # pygame.font.SysFont().render()
 def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered=False):
@@ -174,13 +180,27 @@ class GridBox:
         self.x = None
         self.bind = None
         self.set_to(pos, x)
-    def setanimation(self, start, end):
+    def setani_move(self, start, end):
         self.bind.state = 0
         spos = _add(_mul(_transpose(start), grid_gap + grid_lattice), (grid_gap, grid_gap))
         epos = _add(_mul(_transpose(end), grid_gap + grid_lattice), (grid_gap, grid_gap))
         self.bind.topleft = spos
         self.bind.start = spos
         self.bind.end = epos
+    def setani_resize(self, pos, start = 0.0, end = 1.0):
+        self.bind.state = 0
+        ssiz = _mul((grid_lattice, grid_lattice), start)
+        esiz = _mul((grid_lattice, grid_lattice), end)
+        cpos = _add(_mul(_transpose(pos), grid_gap + grid_lattice), (grid_gap + grid_lattice//2, grid_gap + grid_lattice//2))
+        spos = _sub(cpos, _ldiv(ssiz, 2))
+        epos = _sub(cpos, _ldiv(esiz, 2))
+        self.bind.topleft = spos
+        self.bind.start = spos
+        self.bind.end = epos
+        self.bind.size = ssiz
+        self.bind.startsize = ssiz
+        self.bind.endsize = esiz
+        self.bind.resized = True
 
 class Grid:
     def __init__(self, n, m):
@@ -320,7 +340,7 @@ def g2048_handle(events):
         if name == 'mov':
             start, end = event[1:] #!
             print(grid.bind)
-            grid.get(start).setanimation(start, end)
+            grid.get(start).setani_move(start, end)
         elif name == '$mov':
             start, end = event[1:] #!
             grid.movebind(start, end, grid_itembox_list)#?
@@ -331,6 +351,7 @@ def g2048_handle(events):
             pos, x = event[1:] #!
             # print(pos, x)
             grid.newbind(pos, GridBox(pos, x), grid_itembox_list)
+            grid.get(pos).setani_resize(pos, 0.5)
             # print(*map(type, grid_itembox_list.ls))
 
         elif name == 'over':
