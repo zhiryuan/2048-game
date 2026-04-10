@@ -12,6 +12,7 @@ def _sub(x, y): return x[0]-y[0], x[1]-y[1]
 def _ldiv(x, d): return x[0]//d, x[1]//d
 def _mul(x, d): return x[0]*d, x[1]*d
 def _transpose(x): return x[1], x[0]
+def _toint(x): return int(x[0]), int(x[1])
 default_font_size = 36
 default_font = 'Arial'
 
@@ -24,7 +25,7 @@ class ItemBox:
         self.static = False
         self.size = size
         self.padding = padding
-        self.centered = False
+        self.centered = 'l'
         self.text = text
         self.start = (0, 0)
         self.end = (0, 0)
@@ -50,10 +51,12 @@ class ItemBox:
         pygame.draw.rect(self.display, self.bgcolor, (0, 0, *self.size), border_radius=self.radius)
         font = pygame.font.SysFont(self.font, self.fontsize)
         self.text_surface = font.render(self.text, True, self.color)
-        if self.centered:
+        if self.centered == 'c':
             self.text_rect = self.text_surface.get_rect(center=_ldiv(self.size, 2))
-        else:
+        elif self.centered == 'l':
             self.text_rect = self.text_surface.get_rect(topleft=(self.padding, self.padding))
+        else:
+            self.text_rect = self.text_surface.get_rect(topright=(self.size[0]-self.padding, self.padding))
         self.display.blit(self.text_surface, self.text_rect)
     def getdisplay(self):
         if self.display is None: self.renewdisplay()
@@ -70,12 +73,12 @@ class ItemBox:
             self.size = _add(self.startsize, vec2)
         self.updating = True
 # pygame.font.SysFont().render()
-def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered=False):
+def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered='l'):
     itembox = ItemBox(topleft, size, bgcolor, color, text, font_size, padding, radius)
     itembox.static = True; itembox.dynamic = False; itembox.zaxis = -1
     itembox.centered = centered
     return itembox
-def dynamic_itembox(sf, topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered=False):
+def dynamic_itembox(sf, topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered='l'):
     if sf is None: itembox = ItemBox()
     else: itembox = sf
     (
@@ -116,10 +119,12 @@ clr = {
     '0': (205, 193, 180), '2': (238, 228, 218), '4': (237, 224, 200), '8': (242, 177, 121),
     '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
     '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
+    '#': (0, 0, 0, 0), '×2': (0, 28, 83), '×4': (89, 194, 225),
+    'null': (0, 0, 0, 0),
     'default': (0, 0, 0)
 }
 txt0 = {
-    '2', '4'
+    '2', '4', '#'
 }
 
 g_n, g_m = 4, 4
@@ -140,13 +145,21 @@ static_itembox_list = ItemBoxList([
     static_itembox((205, 80), (185, 30), clr['4'], 5, clr['txt0'],
                     'best: ', 20, 5),
     static_itembox((10, 120), (380, 380), clr['grid'], 10),
-    *[static_itembox((10 + (j+1)*grid_gap + j*grid_lattice, 120 + (i+1)*grid_gap + i*grid_lattice),
-                     (grid_lattice, grid_lattice), clr['0'], 5,
-                     centered=True) for i in range(g_n) for j in range(g_m)]
+    *[static_itembox((1 + 10 + (j+1)*grid_gap + j*grid_lattice, 1 + 120 + (i+1)*grid_gap + i*grid_lattice),
+                     (grid_lattice - 2, grid_lattice - 2), clr['0'], 5,
+                     centered='c') for i in range(g_n) for j in range(g_m)]
 ])
 static_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 grid_itembox_list = ItemBoxList([])
 grid_itembox_list.offset = _add(static_itembox_list.offset, grid_offset)
+num_itembox_list = ItemBoxList([
+    static_itembox((10, 80), (185, 30), clr['null'], 5, clr['txt0'],
+                   '0', 20, 5, centered='r'),
+    static_itembox((205, 80), (185, 30), clr['null'], 5, clr['txt0'],
+                   '0', 20, 5, centered='r'),
+])
+lnum_itembox, rnum_itembox = num_itembox_list.ls
+num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 
 bgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 aniscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
@@ -154,6 +167,22 @@ def init_screen():
     display_screen.fill(clr['2'])
     static_itembox_list.blit_to(bgscreen)
     display_screen.blit(bgscreen, (0, 0))
+
+class NumBoard:
+    def __init__(self):
+        self.lnum_bind = lnum_itembox
+        self.lnum = 0
+        self.rnum_bind = rnum_itembox
+        self.rnum = 0
+    def add(self, x):
+        self.lnum += x
+        self.lnum_bind.text = str(self.lnum)
+        self.lnum_bind.changed = True
+        if self.lnum > self.rnum:
+            self.rnum = self.lnum
+            self.rnum_bind.text = str(self.rnum)
+            self.rnum_bind.changed = True
+numboard = NumBoard()
 
 def to_str(x):
     if x < 0:
@@ -174,7 +203,7 @@ class GridBox:
         fnt, pd = grid_font(s)
         pos = _transpose(pos)
         gridpos = _add(_mul(pos, grid_gap + grid_lattice), (grid_gap, grid_gap))
-        self.bind = dynamic_itembox(self.bind, gridpos, (grid_lattice, grid_lattice), c1, grid_radius, c2, s, fnt, pd, True)
+        self.bind = dynamic_itembox(self.bind, gridpos, (grid_lattice, grid_lattice), c1, grid_radius, c2, s, fnt, pd, 'c')
     def __init__(self, pos, x): # plan + lazy deleting
         # self.pos = None
         self.x = None
@@ -189,8 +218,8 @@ class GridBox:
         self.bind.end = epos
     def setani_resize(self, pos, start = 0.0, end = 1.0):
         self.bind.state = 0
-        ssiz = _mul((grid_lattice, grid_lattice), start)
-        esiz = _mul((grid_lattice, grid_lattice), end)
+        ssiz = _toint(_mul((grid_lattice, grid_lattice), start))
+        esiz = _toint(_mul((grid_lattice, grid_lattice), end))
         cpos = _add(_mul(_transpose(pos), grid_gap + grid_lattice), (grid_gap + grid_lattice//2, grid_gap + grid_lattice//2))
         spos = _sub(cpos, _ldiv(ssiz, 2))
         epos = _sub(cpos, _ldiv(esiz, 2))
@@ -235,22 +264,26 @@ class Grid:
     def send_to_list(self, itembox_list):
         ## print([x.bind.text for ln in self.bind for x in ln if x is not None])
         itembox_list.renewls([x.bind for ln in self.bind for x in ln if x is not None])
-    def con_output(self):
-        print(' '+'='*20+' '*8+'='*20)
+    def con_output(self, showbind=False):
+        print(' '+'='*20+(' '*8+'='*20 if showbind else ''))
         for i in range(self.n):
             for x in self.grid[i]:
                 print(f'{x:5}', end='')
             print(' '*8, end='')
-            for x in self.bind[i]:
-                print(f'{x.x if x else 0:5}', end='')
+            if showbind:
+                for x in self.bind[i]:
+                    print(f'{x.x if x else 0:5}', end='')
             print('')
-        print(' '+'='*20+' '*8+'='*20)
+        print(' '+'='*20+(' '*8+'='*20 if showbind else ''))
         print()
 
 def craft(x, y):
     if x==y: return x*2
     elif (x>0) ^ (y>0): return -x*y
     else: return None
+def mergescore(x, y):
+    if x==y: return x*2
+    else: return 0
 
 def g2048_move(direction):
     # n, m = grid.n, grid.m
@@ -259,6 +292,7 @@ def g2048_move(direction):
     q = []
     q2 = []
     b = 0
+    sc = 0
     print(f'di={direction}')
     for i in ri:
         it = iter(rj); y = 0; yb = 0; k = -1
@@ -269,6 +303,7 @@ def g2048_move(direction):
                     q.append(('mov', grid(i, j, t), grid(i, k, t)))
                     q2.append(('$mov', grid(i, j, t), grid(i, k, t)))
                     b = 1
+                    sc += mergescore(x, y)
                     y = cr; yb = 1; grid[i, k, t] = y
                     q2.append(('double', grid(i, k, t), y))
                 else:
@@ -280,6 +315,7 @@ def g2048_move(direction):
                     y = x; yb = 0; grid[i, k, t] = y
         while (k := next(it, None)) is not None:
             grid[i, k, t] = 0
+    q2.append(('score', sc))
     grid.con_output()
     return b, q, q2
 
@@ -353,7 +389,10 @@ def g2048_handle(events):
             grid.newbind(pos, GridBox(pos, x), grid_itembox_list)
             grid.get(pos).setani_resize(pos, 0.5)
             # print(*map(type, grid_itembox_list.ls))
-
+        elif name == 'score':
+            x, = event[1:]
+            numboard.add(x)
+            #!
         elif name == 'over':
             pass #!
 
@@ -366,6 +405,7 @@ def g2048_process():
     grid.send_to_list(grid_itembox_list) #!
     # grid.con_output()
     grid_itembox_list.nextstate(display_screen)
+    num_itembox_list.nextstate(display_screen)
 
 def g2048_init():
     global alive
