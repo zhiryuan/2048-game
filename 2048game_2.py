@@ -37,6 +37,8 @@ class ItemBox:
         self.color = color
         self.radius = radius
         self.zaxis = 0
+        self.alpha = 1.0
+        self.dalpha = 0.0
         self.display = None
         self.fontsize = font_size
         self.font = default_font
@@ -44,13 +46,22 @@ class ItemBox:
         self.text_rect = None
         self.updating = False
         self.changed = False
+        self.realphaed = False
         self.resized = False
         # self._vel = (0, 0)
+    def _getcolor(self, color):
+        # print(self.alpha, self.)
+        if len(color)==3:
+            return color+(int(255*self.alpha+0.5),)
+        print(color[:3]+(int(color[3]*self.alpha+0.5),))
+        return color[:3]+(int(color[3]*self.alpha+0.5),)
     def renewdisplay(self):
         self.display = pygame.Surface(self.size, pygame.SRCALPHA)
-        pygame.draw.rect(self.display, self.bgcolor, (0, 0, *self.size), border_radius=self.radius)
+        pygame.draw.rect(self.display, self._getcolor(self.bgcolor), (0, 0, *self.size), border_radius=self.radius)
         font = pygame.font.SysFont(self.font, self.fontsize)
-        self.text_surface = font.render(self.text, True, self.color)
+        color = self._getcolor(self.color)
+        self.text_surface = font.render(self.text, True, color[:3])
+        self.text_surface.set_alpha(color[3])
         if self.centered == 'c':
             self.text_rect = self.text_surface.get_rect(center=_ldiv(self.size, 2))
         elif self.centered == 'l':
@@ -64,14 +75,20 @@ class ItemBox:
     def nextstate(self):
         if self.static: return
         if not self.dynamic: return
-        if self.state == self.endstate: self.resized = False; return
+        if self.state == self.endstate:
+            if self.realphaed: self.alpha = 0.0; self.changed = True
+            self.resized, self.realphaed = False, False
+            return
         self.state += 1
         vec = _ldiv(_mul(_sub(self.end, self.start), self.state), anips)
         self.topleft = _add(self.start, vec)
         if self.resized:
             vec2 = _ldiv(_mul(_sub(self.endsize, self.startsize), self.state), anips)
             self.size = _add(self.startsize, vec2)
-        self.updating = True
+        if self.realphaed:
+            self.alpha += self.dalpha
+            if self.alpha < 0: self.alpha = 0
+        self.updating = True; self.changed = True
 # pygame.font.SysFont().render()
 def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered='l'):
     itembox = ItemBox(topleft, size, bgcolor, color, text, font_size, padding, radius)
@@ -99,9 +116,10 @@ class ItemBoxList:
             x.nextstate()
             if x.changed:
                 x.renewdisplay()
+                x.changed = False
             if x.updating:
                 pass
-                #dirty
+                #dirty rects
         self.blit_to(screen)
     def add(self, x):
         self.ls.append(x)
@@ -153,13 +171,21 @@ static_itembox_list = ItemBoxList([
 static_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 grid_itembox_list = ItemBoxList([])
 grid_itembox_list.offset = _add(static_itembox_list.offset, grid_offset)
+
+lnum_topleft, rnum_topleft, lrnum_size = (10, 80), (205, 80), (185, 30)
+lradd_movex, lradd_alpha, lradd_dalpha, lradd_anilen = (0, -20), 0.6, -0.01, 20
+
 num_itembox_list = ItemBoxList([
-    static_itembox((10, 80), (185, 30), clr['null'], 5, clr['txt0'],
+    static_itembox(lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
                    '0', 20, 5, centered='r'),
-    static_itembox((205, 80), (185, 30), clr['null'], 5, clr['txt0'],
+    static_itembox(rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
                    '0', 20, 5, centered='r'),
+    dynamic_itembox(None, lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+                   '', 20, 5, centered='r'),
+    dynamic_itembox(None, rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+                   '', 20, 5, centered='r'),
 ])
-lnum_itembox, rnum_itembox = num_itembox_list.ls
+lnum_itembox, rnum_itembox, ladd_itembox, radd_itembox = num_itembox_list.ls
 num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 
 bgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
@@ -175,14 +201,28 @@ class NumBoard:
         self.lnum = 0
         self.rnum_bind = rnum_itembox
         self.rnum = 0
+        self.ladd_bind = ladd_itembox
+        self.radd_bind = radd_itembox
     def add(self, x):
         self.lnum += x
+        ladd = x
         self.lnum_bind.text = str(self.lnum)
         self.lnum_bind.changed = True
+        self.ladd_bind = dynamic_itembox(self.ladd_bind, lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+                       f'{ladd:+}', 20, 5, centered='r')
+        self.ladd_bind.alpha, self.ladd_bind.dalpha, self.ladd_bind.realphaed = lradd_alpha, lradd_dalpha, True
+        self.ladd_bind.start, self.ladd_bind.end = lnum_topleft, _add(lradd_movex, lnum_topleft)
+        self.ladd_bind.state, self.ladd_bind.endstate = 0, lradd_anilen
         if self.lnum > self.rnum:
+            radd = self.lnum - self.rnum
             self.rnum = self.lnum
             self.rnum_bind.text = str(self.rnum)
             self.rnum_bind.changed = True
+            self.radd_bind = dynamic_itembox(self.radd_bind, rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+                           f'{radd:+}', 20, 5, centered='r')
+            self.radd_bind.alpha, self.radd_bind.dalpha, self.radd_bind.realphaed = lradd_alpha, lradd_dalpha, True
+            self.radd_bind.start, self.radd_bind.end = rnum_topleft, _add(lradd_movex, rnum_topleft)
+            self.radd_bind.state, self.radd_bind.endstate = 0, lradd_anilen
 numboard = NumBoard()
 
 def to_str(x):
