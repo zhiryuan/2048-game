@@ -53,7 +53,7 @@ class ItemBox:
         # print(self.alpha, self.)
         if len(color)==3:
             return color+(int(255*self.alpha+0.5),)
-        print(color[:3]+(int(color[3]*self.alpha+0.5),))
+        #print(color[:3]+(int(color[3]*self.alpha+0.5),))
         return color[:3]+(int(color[3]*self.alpha+0.5),)
     def renewdisplay(self):
         self.display = pygame.Surface(self.size, pygame.SRCALPHA)
@@ -344,7 +344,7 @@ def g2048_move(direction):
         it = iter(rj); y = 0; yb = 0; k = -1
         for j in rj:
             if x:=grid[i, j, t]:
-                print(i, j, k, x)
+                # print(i, j, k, x)
                 if y and (cr:=craft(x, y)) is not None and (not yb):
                     q.append(('mov', grid(i, j, t), grid(i, k, t)))
                     q2.append(('$mov', grid(i, j, t), grid(i, k, t)))
@@ -425,7 +425,7 @@ def g2048_handle(events):
         print(*event)
         if name == 'mov':
             start, end = event[1:] #!
-            print(grid.bind)
+            # print(grid.bind)
             grid.get(start).setani_move(start, end)
         elif name == '$mov':
             start, end = event[1:] #!
