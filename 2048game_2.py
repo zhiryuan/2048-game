@@ -119,7 +119,8 @@ clr = {
     '0': (205, 193, 180), '2': (238, 228, 218), '4': (237, 224, 200), '8': (242, 177, 121),
     '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
     '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
-    '#': (0, 0, 0, 0), '×2': (0, 28, 83), '×4': (89, 194, 225),
+    '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
+    '#': (0, 0, 0, 0), '×2': (0, 28, 83), '×4': (89, 194, 225), '×0': (45, 215, 112),
     'null': (0, 0, 0, 0),
     'default': (0, 0, 0)
 }
@@ -187,6 +188,7 @@ numboard = NumBoard()
 def to_str(x):
     if x < 0:
         if x == -1: return '#'
+        if x == -3: return '×0'
         return '×'+str(-x)
     return str(x)
 def grid_palette(s):
@@ -278,11 +280,15 @@ class Grid:
         print()
 
 def craft(x, y):
+    if x==-3 or y==-3: return -1
     if x==y: return x*2
     elif (x>0) ^ (y>0): return -x*y
     else: return None
 def mergescore(x, y):
-    if x==y: return x*2
+    if x==-3 or y==-3: return -(x*y)*2
+    if x==y:
+        if x>0: return x*2
+        else: return 2**((-x)*8)
     else: return 0
 
 def g2048_move(direction):
@@ -320,12 +326,16 @@ def g2048_move(direction):
     return b, q, q2
 
 # customed
+basicfactor = 1
 def getrandomblock():
     r = random.randint(0, 99)
     if r < 94:
-        return 4 if (r<10) else 2
+        return (4 if (r<10) else 2)*basicfactor
     else:
-        return -1 if(r<98) else (-4 if (random.randint(0, 9) == 0) else -2)
+        if r<97: return -1
+        else:
+            r = random.randint(0, 9)
+            return -4 if r==0 else -3 if r<4 else -2
     # return 2**8
 def g2048_addnew(q2):
     n, m = grid.n, grid.m
