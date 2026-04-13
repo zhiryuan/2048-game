@@ -203,23 +203,29 @@ class NumBoard:
         self.rnum = 0
         self.ladd_bind = ladd_itembox
         self.radd_bind = radd_itembox
+    @staticmethod
+    def _tonum(x, add=True):
+        ret = f'{x:+}' if add else f'{x}'
+        if len(ret)>9:
+            ret = f'{float(x):+.4e}' if add else f'{float(x):.4e}'
+        return ret
     def add(self, x):
         self.lnum += x
         ladd = x
-        self.lnum_bind.text = str(self.lnum)
+        self.lnum_bind.text = self._tonum(self.lnum, False)
         self.lnum_bind.changed = True
         self.ladd_bind = dynamic_itembox(self.ladd_bind, lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                       f'{ladd:+}', 20, 5, centered='r')
+                       self._tonum(ladd), 20, 5, centered='r')
         self.ladd_bind.alpha, self.ladd_bind.dalpha, self.ladd_bind.realphaed = lradd_alpha, lradd_dalpha, True
         self.ladd_bind.start, self.ladd_bind.end = lnum_topleft, _add(lradd_movex, lnum_topleft)
         self.ladd_bind.state, self.ladd_bind.endstate = 0, lradd_anilen
         if self.lnum > self.rnum:
             radd = self.lnum - self.rnum
             self.rnum = self.lnum
-            self.rnum_bind.text = str(self.rnum)
+            self.rnum_bind.text = self._tonum(self.rnum, False)
             self.rnum_bind.changed = True
             self.radd_bind = dynamic_itembox(self.radd_bind, rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                           f'{radd:+}', 20, 5, centered='r')
+                           self._tonum(radd), 20, 5, centered='r')
             self.radd_bind.alpha, self.radd_bind.dalpha, self.radd_bind.realphaed = lradd_alpha, lradd_dalpha, True
             self.radd_bind.start, self.radd_bind.end = rnum_topleft, _add(lradd_movex, rnum_topleft)
             self.radd_bind.state, self.radd_bind.endstate = 0, lradd_anilen
@@ -366,11 +372,11 @@ def g2048_move(direction):
     return b, q, q2
 
 # customed
-basicfactor = 1
+basicfactor = 2
 def getrandomblock():
     r = random.randint(0, 99)
     if r < 94:
-        return (4 if (r<10) else 2)*basicfactor
+        return (2 if (r<10) else 1)*basicfactor
     else:
         if r<97: return -1
         else:
