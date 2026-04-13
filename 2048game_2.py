@@ -13,6 +13,7 @@ def _ldiv(x, d): return x[0]//d, x[1]//d
 def _mul(x, d): return x[0]*d, x[1]*d
 def _transpose(x): return x[1], x[0]
 def _toint(x): return int(x[0]), int(x[1])
+def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
 default_font_size = 36
 default_font = 'Arial'
 
@@ -42,6 +43,7 @@ class ItemBox:
         self.display = None
         self.fontsize = font_size
         self.font = default_font
+        self.text_pos = None
         self.text_surface = None
         self.text_rect = None
         self.updating = False
@@ -62,12 +64,14 @@ class ItemBox:
         color = self._getcolor(self.color)
         self.text_surface = font.render(self.text, True, color[:3])
         self.text_surface.set_alpha(color[3])
-        if self.centered == 'c':
-            self.text_rect = self.text_surface.get_rect(center=_ldiv(self.size, 2))
-        elif self.centered == 'l':
+        if self.centered == 'l':
             self.text_rect = self.text_surface.get_rect(topleft=(self.padding, self.padding))
-        else:
+        elif self.centered == 'r':
             self.text_rect = self.text_surface.get_rect(topright=(self.size[0]-self.padding, self.padding))
+        elif self.centered == 'cx':
+            self.text_rect = self.text_surface.get_rect(center=_toint(_dproduct(self.size, self.text_pos)))
+        else: #self.centered == 'c'
+            self.text_rect = self.text_surface.get_rect(center=_ldiv(self.size, 2))
         self.display.blit(self.text_surface, self.text_rect)
     def getdisplay(self):
         if self.display is None: self.renewdisplay()
@@ -89,6 +93,10 @@ class ItemBox:
             self.alpha += self.dalpha
             if self.alpha < 0: self.alpha = 0
         self.updating = True; self.changed = True
+    def setr(self, **kwargs):
+        for key, value in  kwargs.items():
+            setattr(self, key, value)
+        return self
 # pygame.font.SysFont().render()
 def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered='l'):
     itembox = ItemBox(topleft, size, bgcolor, color, text, font_size, padding, radius)
@@ -110,6 +118,7 @@ class ItemBoxList:
     def __init__(self, ls):
         self.ls = list(ls)
         self.offset = (0, 0)
+        self.hide = False
     def nextstate(self, screen):
         #dirty_
         for x in self.ls:
@@ -120,7 +129,8 @@ class ItemBoxList:
             if x.updating:
                 pass
                 #dirty rects
-        self.blit_to(screen)
+        if not self.hide:
+            self.blit_to(screen)
     def add(self, x):
         self.ls.append(x)
     def delx(self, x): #!
@@ -130,6 +140,8 @@ class ItemBoxList:
             screen.blit(x.getdisplay(), _add(x.topleft, self.offset))
     def renewls(self, ls):
         self.ls = ls
+    def sethide(self, hide):
+        self.hide = hide
 
 clr = {
     'txt0': (119, 110, 101), 'txt1': (255, 255, 255),
@@ -138,9 +150,10 @@ clr = {
     '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
     '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
     '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
-    '#': (0, 0, 0, 0), '×2': (0, 28, 83), '×4': (89, 194, 225), '×0': (45, 215, 112),
+    '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (45, 215, 112),
+    'fog': (255, 255, 255, 128),
     'null': (0, 0, 0, 0),
-    'default': (0, 0, 0)
+    'default': (32, 32, 32)
 }
 txt0 = {
     '2', '4', '#'
@@ -187,6 +200,13 @@ num_itembox_list = ItemBoxList([
 ])
 lnum_itembox, rnum_itembox, ladd_itembox, radd_itembox = num_itembox_list.ls
 num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
+
+over_itembox_list = ItemBoxList([
+    static_itembox(grid_offset, grid_size, clr['fog'], 10, clr['txt0'],
+                   'Game Over!', 60, 10, centered='cx').setr(text_pos=(1/2, 1/3))
+])
+over_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
+over_itembox_list.hide = True
 
 bgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 aniscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
@@ -367,7 +387,7 @@ def g2048_move(direction):
                     y = x; yb = 0; grid[i, k, t] = y
         while (k := next(it, None)) is not None:
             grid[i, k, t] = 0
-    q2.append(('score', sc))
+    if sc: q2.append(('score', sc))
     grid.con_output()
     return b, q, q2
 
@@ -450,7 +470,7 @@ def g2048_handle(events):
             numboard.add(x)
             #!
         elif name == 'over':
-            pass #!
+            over_itembox_list.sethide(False)
 
 def g2048_process():
     while sched_cnt > 1 and sched_queue:
@@ -462,6 +482,7 @@ def g2048_process():
     # grid.con_output()
     grid_itembox_list.nextstate(display_screen)
     num_itembox_list.nextstate(display_screen)
+    over_itembox_list.nextstate(display_screen)
 
 def g2048_init():
     global alive
