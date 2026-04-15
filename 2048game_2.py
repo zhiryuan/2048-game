@@ -354,7 +354,7 @@ def mergescore(x, y):
     if x==-3 or y==-3: return -(x*y)*4
     if x==y:
         if x>0: return x*2
-        else: return 2**((-x)*8)
+        else: return 2**((-x+2)*4)
     else: return 0
 
 def g2048_move(direction):
@@ -408,13 +408,13 @@ def getrandomblock(p=0):
         return -3 if r==0 else -4 if r<6 else -2
     elif p == -1:
         r = random.randint(0, 15)
-        return 2 if r==0 else 4 if r<8 else -3
+        return 2*basicfactor if r==0 else 4*basicfactor if r<8 else -3
     elif p == 2:
         r = random.randint(0, 15)
-        return 4 if r==0 else 2
+        return 4 if r==0 else -3 if r==1 else -1 if r==2 else 2
     elif p == 4:
         r = random.randint(0, 15)
-        return 2 if r<4 else 4
+        return 2 if r<4 else -3 if r==4 else -1 if r==5 else 4
     return 0
     # return 2**8
 def g2048_addnew(q2):
@@ -434,8 +434,7 @@ def g2048_addnew(q2):
                         if y >= 256: p1 += 1
                         elif 16 <= y <= 64: p2 += 1
                         elif y == 4: p3 += 1
-                        else: p4 += 1
-                    x = 0
+                        elif y == 2: p4 += 1
                     if r2 == 0:
                         if p1:
                             x = getrandomblock(1)
@@ -445,8 +444,9 @@ def g2048_addnew(q2):
                             x = getrandomblock(4)
                         elif p4:
                             x = getrandomblock(2)
-                    else:
-                        x = getrandomblock()
+                        else:
+                            x = getrandomblock()
+                    else: x = getrandomblock()
                     grid[i, j] = x
                     q2.append(('new', (i, j), x))
     if s > 1: return 1
