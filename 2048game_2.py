@@ -150,7 +150,7 @@ clr = {
     '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
     '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
     '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
-    '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (45, 215, 112),
+    '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (192, 32, 24),
     'fog': (255, 255, 255, 128),
     'null': (0, 0, 0, 0),
     'default': (32, 32, 32)
@@ -351,7 +351,7 @@ def craft(x, y):
     elif (x>0) ^ (y>0): return -x*y
     else: return None
 def mergescore(x, y):
-    if x==-3 or y==-3: return -(x*y)*2
+    if x==-3 or y==-3: return -(x*y)*4
     if x==y:
         if x>0: return x*2
         else: return 2**((-x)*8)
@@ -393,26 +393,60 @@ def g2048_move(direction):
 
 # customed
 basicfactor = 2
-def getrandomblock():
-    r = random.randint(0, 99)
-    if r < 94:
-        return (2 if (r<10) else 1)*basicfactor
-    else:
-        if r<97: return -1
+def getrandomblock(p=0):
+    if p == 0:
+        r = random.randint(0, 99)
+        if r < 94:
+            return (2 if (r<10) else 1)*basicfactor
         else:
-            r = random.randint(0, 9)
-            return -4 if r==0 else -3 if r<4 else -2
+            if r<97: return -1
+            else:
+                r = random.randint(0, 9)
+                return -4 if r==0 else -3 if r<4 else -2
+    elif p == 1:
+        r = random.randint(0, 15)
+        return -3 if r==0 else -4 if r<6 else -2
+    elif p == -1:
+        r = random.randint(0, 15)
+        return 2 if r==0 else 4 if r<8 else -3
+    elif p == 2:
+        r = random.randint(0, 15)
+        return 4 if r==0 else 2
+    elif p == 4:
+        r = random.randint(0, 15)
+        return 2 if r<4 else 4
+    return 0
     # return 2**8
 def g2048_addnew(q2):
     n, m = grid.n, grid.m
     s = sum(not grid[i, j] for i in range(n) for j in range(m))
     r = random.randint(1, s)
-    x = getrandomblock()
     for i in range(n):
         for j in range(m):
             if not grid[i, j]:
                 r -= 1
                 if r == 0:
+                    lx = [grid[i+di, j+dj] for di,dj in ((1,0), (-1,0), (0,-1), (0,1))
+                          if i+di in range(n) and j+dj in range(m)]
+                    r2 = random.randint(0, 5)
+                    p1, p2, p3, p4 = 0, 0, 0, 0
+                    for y in lx:
+                        if y >= 256: p1 += 1
+                        elif 16 <= y <= 64: p2 += 1
+                        elif y == 4: p3 += 1
+                        else: p4 += 1
+                    x = 0
+                    if r2 == 0:
+                        if p1:
+                            x = getrandomblock(1)
+                        elif p2:
+                            x = getrandomblock(-1)
+                        elif p3:
+                            x = getrandomblock(4)
+                        elif p4:
+                            x = getrandomblock(2)
+                    else:
+                        x = getrandomblock()
                     grid[i, j] = x
                     q2.append(('new', (i, j), x))
     if s > 1: return 1
