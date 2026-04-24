@@ -17,6 +17,9 @@ def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
 default_font_size = 36
 default_font = 'Arial'
 
+
+
+
 anips = 12
 class ItemBox:
     def __init__(self, topleft=(0, 0), size=(0, 0), bgcolor=(255, 255, 255), color=(0, 0, 0),
@@ -159,26 +162,38 @@ txt0 = {
     '2', '4', '#'
 }
 
-g_n, g_m = 4, 4
 
-game_size = (400, 510)
+
+
+g_n, g_m = 5, 4
+g_addfactor = 16
+
+g_s = max(g_n, g_m)
+
+game_size = (410, 520)
 grid_offset = (10, 120)
-grid_size = (380, 380)
-grid_gap = 8
-grid_lattice = 85
-grid_radius = 5
+grid_size = (390, 390)
+grid_lattice = (360//g_m, 360//g_n)
+
+grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(grid_lattice, (g_m, g_n))), (1/(g_m+1), 1/(g_n+1)))
+grid_radius = 1+16//g_s
+
+def _getpos(pos):
+    return _add(_dproduct(_transpose(pos), grid_lattice),
+                   _toint(_dproduct(_add(_transpose(pos), (1, 1)), grid_mean_gap)))
+
 static_itembox_list = ItemBoxList([
     static_itembox((0, 0), game_size, clr['bg'], 10, clr['txt0'],
                    '', 36, 10),
-    static_itembox((10, 10), (380, 70), clr['bg'], 5, clr['txt0'],
+    static_itembox((10, 10), (390, 70), clr['bg'], 5, clr['txt0'],
                     '2048_game', 50, 5),
-    static_itembox((10, 80), (185, 30), clr['4'], 5, clr['txt0'],
+    static_itembox((10, 80), (190, 30), clr['4'], 5, clr['txt0'],
                     'current: ', 20, 5),
-    static_itembox((205, 80), (185, 30), clr['4'], 5, clr['txt0'],
+    static_itembox((210, 80), (190, 30), clr['4'], 5, clr['txt0'],
                     'best: ', 20, 5),
-    static_itembox((10, 120), (380, 380), clr['grid'], 10),
-    *[static_itembox((1 + 10 + (j+1)*grid_gap + j*grid_lattice, 1 + 120 + (i+1)*grid_gap + i*grid_lattice),
-                     (grid_lattice - 2, grid_lattice - 2), clr['0'], 5,
+    static_itembox((10, 120), (390, 390), clr['grid'], 10),
+    *[static_itembox(_add((1 + 10, 1 + 120), _getpos((i, j))),
+                     (grid_lattice[0] - 2, grid_lattice[1] - 2), clr['0'], 5,
                      centered='c') for i in range(g_n) for j in range(g_m)]
 ])
 static_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
@@ -261,17 +276,16 @@ def grid_palette(s):
     if s in clr: return clr[s], clr['txt0' if s in txt0 else 'txt1']
     return clr['default'], clr['txt1']
 def grid_font(s):
-    return (36 if len(s)<4 else 128//len(s)), 5
+    return min(grid_lattice[0]*5//3 // max(len(s), 4), grid_lattice[1]*4//9)
 
 class GridBox:
     def set_to(self, pos, x):
         self.x = x
         s = to_str(x)
         c1, c2 = grid_palette(s)
-        fnt, pd = grid_font(s)
-        pos = _transpose(pos)
-        gridpos = _add(_mul(pos, grid_gap + grid_lattice), (grid_gap, grid_gap))
-        self.bind = dynamic_itembox(self.bind, gridpos, (grid_lattice, grid_lattice), c1, grid_radius, c2, s, fnt, pd, 'c')
+        fnt = grid_font(s)
+        gridpos = _getpos(pos)
+        self.bind = dynamic_itembox(self.bind, gridpos, grid_lattice, c1, grid_radius, c2, s, fnt, 0, 'c')
     def __init__(self, pos, x): # plan + lazy deleting
         # self.pos = None
         self.x = None
@@ -279,16 +293,16 @@ class GridBox:
         self.set_to(pos, x)
     def setani_move(self, start, end):
         self.bind.state = 0
-        spos = _add(_mul(_transpose(start), grid_gap + grid_lattice), (grid_gap, grid_gap))
-        epos = _add(_mul(_transpose(end), grid_gap + grid_lattice), (grid_gap, grid_gap))
+        spos = _getpos(start)
+        epos = _getpos(end)
         self.bind.topleft = spos
         self.bind.start = spos
         self.bind.end = epos
     def setani_resize(self, pos, start = 0.0, end = 1.0):
         self.bind.state = 0
-        ssiz = _toint(_mul((grid_lattice, grid_lattice), start))
-        esiz = _toint(_mul((grid_lattice, grid_lattice), end))
-        cpos = _add(_mul(_transpose(pos), grid_gap + grid_lattice), (grid_gap + grid_lattice//2, grid_gap + grid_lattice//2))
+        ssiz = _toint(_mul(grid_lattice, start))
+        esiz = _toint(_mul(grid_lattice, end))
+        cpos = _add(_getpos(pos), _ldiv(grid_lattice, 2))
         spos = _sub(cpos, _ldiv(ssiz, 2))
         epos = _sub(cpos, _ldiv(esiz, 2))
         self.bind.topleft = spos
@@ -420,12 +434,16 @@ def getrandomblock(p=0):
 def g2048_addnew(q2):
     n, m = grid.n, grid.m
     s = sum(not grid[i, j] for i in range(n) for j in range(m))
-    r = random.randint(1, s)
+    r = random.sample(range(1, s+1), 1+s//g_addfactor)
+    r.sort(reverse=True)
+    for i in range(len(r)-1): r[i] -= r[i+1]
+
     for i in range(n):
         for j in range(m):
             if not grid[i, j]:
-                r -= 1
-                if r == 0:
+                if not r: break
+                r[-1] -= 1
+                if r[-1] == 0:
                     lx = [grid[i+di, j+dj] for di,dj in ((1,0), (-1,0), (0,-1), (0,1))
                           if i+di in range(n) and j+dj in range(m)]
                     r2 = random.randint(0, 5)
@@ -449,6 +467,7 @@ def g2048_addnew(q2):
                     else: x = getrandomblock()
                     grid[i, j] = x
                     q2.append(('new', (i, j), x))
+                    r.pop()
     if s > 1: return 1
     if any(craft(grid[i, j], grid[i+1, j]) is not None for i in range(n-1) for j in range(m)): return 1
     if any(craft(grid[i, j], grid[i, j+1]) is not None for i in range(n) for j in range(m-1)): return 1
@@ -528,8 +547,9 @@ def g2048_init():
         sched_queue.extend([q2])
     g2048_process()
 
-grid = Grid(4, 4)
-key_map = {pygame.K_a: (1, 'a'), pygame.K_s: (1, 's'), pygame.K_d: (1, 'd'), pygame.K_w: (1, 'w')}
+grid = Grid(g_n, g_m)
+key_map = {pygame.K_a: (1, 'a'), pygame.K_s: (1, 's'), pygame.K_d: (1, 'd'), pygame.K_w: (1, 'w'),
+           pygame.K_LEFT: (1, 'a'), pygame.K_DOWN: (1, 's'), pygame.K_RIGHT: (1, 'd'), pygame.K_UP: (1, 'w')}
 
 def UIloop():
     running = True
