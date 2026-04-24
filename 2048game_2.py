@@ -165,18 +165,16 @@ txt0 = {
 
 
 
-g_n, g_m = 5, 4
+g_n, g_m = 4, 5
 g_addfactor = 16
-
-g_s = max(g_n, g_m)
 
 game_size = (410, 520)
 grid_offset = (10, 120)
 grid_size = (390, 390)
-grid_lattice = (360//g_m, 360//g_n)
+grid_lattice = ((390-30*min(g_m, 4)//4)//g_m, (390-30*min(g_n, 4)//4)//g_n)
 
 grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(grid_lattice, (g_m, g_n))), (1/(g_m+1), 1/(g_n+1)))
-grid_radius = 1+16//g_s
+grid_radius = 1+16//max(g_n, g_m)
 
 def _getpos(pos):
     return _add(_dproduct(_transpose(pos), grid_lattice),
@@ -191,9 +189,9 @@ static_itembox_list = ItemBoxList([
                     'current: ', 20, 5),
     static_itembox((210, 80), (190, 30), clr['4'], 5, clr['txt0'],
                     'best: ', 20, 5),
-    static_itembox((10, 120), (390, 390), clr['grid'], 10),
+    static_itembox((10, 120), (390, 390), clr['grid'], min(grid_radius, 5)*2),
     *[static_itembox(_add((1 + 10, 1 + 120), _getpos((i, j))),
-                     (grid_lattice[0] - 2, grid_lattice[1] - 2), clr['0'], 5,
+                     (grid_lattice[0] - 2, grid_lattice[1] - 2), clr['0'], grid_radius,
                      centered='c') for i in range(g_n) for j in range(g_m)]
 ])
 static_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
@@ -217,7 +215,7 @@ lnum_itembox, rnum_itembox, ladd_itembox, radd_itembox = num_itembox_list.ls
 num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 
 over_itembox_list = ItemBoxList([
-    static_itembox(grid_offset, grid_size, clr['fog'], 10, clr['txt0'],
+    static_itembox(grid_offset, grid_size, clr['fog'], min(grid_radius, 5) * 2, clr['txt0'],
                    'Game Over!', 60, 10, centered='cx').setr(text_pos=(1/2, 1/3))
 ])
 over_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
