@@ -15,9 +15,9 @@ def _transpose(x): return x[1], x[0]
 def _toint(x): return int(x[0]), int(x[1])
 def _simtoint(x): return int(x[0]+.5), int(x[1]+.5)
 def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
+font_names = ['Microsoft YaHei', 'Arial']
 default_font_size = 36
-default_font = 'Arial'
-
+font_in = {x:pygame.font.SysFont(font_names, x) for x in range(120)}
 
 anips = 12
 class ItemBox:
@@ -44,7 +44,6 @@ class ItemBox:
         self.dalpha = 0.0
         self.display = None
         self.fontsize = font_size
-        self.font = default_font
         self.text_pos = None
         self.text_surface = None
         self.text_rect = None
@@ -62,7 +61,7 @@ class ItemBox:
     def renewdisplay(self):
         self.display = pygame.Surface(self.size, pygame.SRCALPHA)
         pygame.draw.rect(self.display, self._getcolor(self.bgcolor), (0, 0, *self.size), border_radius=self.radius)
-        font = pygame.font.SysFont(self.font, self.fontsize)
+        font = font_in[self.fontsize]
         color = self._getcolor(self.color)
         self.text_surface = font.render(self.text, True, color[:3])
         self.text_surface.set_alpha(color[3])
