@@ -236,7 +236,7 @@ def getlayout(n, m):
 
 
     lnum_topleft, rnum_topleft, lrnum_size = (10, 80), (205, 80), (185, 30)
-    lradd_movex, lradd_alpha, lradd_dalpha, lradd_anilen = (0, -40), 0.7, -0.01, 20
+    lradd_movex, lradd_alpha, lradd_dalpha, lradd_anilen = (0, -30), 0.7, -0.01, 24
 
     num_itembox_list = ItemBoxList([
         static_itembox(lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
@@ -298,7 +298,7 @@ class NumBoard:
         g2048_current_score += x
         ladd, radd = x, 0
         if g2048_current_score > g2048_best_score:
-            radd = g2048_best_score - g2048_current_score
+            radd = g2048_current_score - g2048_best_score
             g2048_best_score = g2048_current_score
         self.refresh(ladd, radd)
 numboard: NumBoard
@@ -654,7 +654,7 @@ def UIloop():
     running = True
     refresh = 0
     init_screen()
-    g2048_init(3, 4)
+    g2048_init(9, 9)
     while running:
         mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
