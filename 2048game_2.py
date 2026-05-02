@@ -170,101 +170,93 @@ game_offset = _ldiv(_sub(screen_size, game_size), 2)
 grid_offset = (10, 120)
 grid_size = (390, 390)
 
-def _getpos(pos):
-    return _add(_dproduct(_transpose(pos), grid_lattice),
-                   _toint(_dproduct(_add(_transpose(pos), (1, 1)), grid_mean_gap)))
 g_n: int; g_m: int; g_addfactor: int
-grid_lattice: tuple; grid_mean_gap: tuple; grid_radius: int
-static_itembox_list: ItemBoxList; over_itembox_list: ItemBoxList
-grid_itembox_list: ItemBoxList; num_itembox_list: ItemBoxList
-lnum_topleft: tuple; rnum_topleft: tuple; lrnum_size:tuple
-lradd_movex: tuple; lradd_alpha:tuple; lradd_dalpha:tuple; lradd_anilen: int
-lnum_itembox: ItemBox; rnum_itembox: ItemBox; ladd_itembox: ItemBox; radd_itembox: ItemBox
+class Layout:
+    def __init__(self, n, m):
+        self.grid_lattice = ((390 - 30 * min(m, 4) // 4) // m, (390 - 30 * min(n, 4) // 4) // n)
+
+        self.grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(self.grid_lattice, (n, n))), (1 / (n + 1), 1 / (n + 1)))
+        self.grid_radius = 1 + 16 // max(n, n)
+        self.static_itembox_list = ItemBoxList([
+            static_itembox((0, 0), game_size, clr['bg'], 10, clr['txt0'],
+                           '', 36, 10),
+            static_itembox((10, 10), (390, 70), clr['bg'], 5, clr['txt0'],
+                           '2048_game', 50, 5),
+            static_itembox((10, 80), (190, 30), clr['4'], 5, clr['txt0'],
+                           'current: ', 20, 5),
+            static_itembox((210, 80), (190, 30), clr['4'], 5, clr['txt0'],
+                           'best: ', 20, 5),
+            static_itembox((10, 120), (390, 390), clr['grid'], min(self.grid_radius, 5) * 2),
+            btn1_box := static_itembox((295, 20), (105, 25), clr['8'], 5, clr['txt1'],
+                                       'menu', 20, 5, centered='c'),
+            btn2_box := static_itembox((295, 50), (105, 25), clr['32'], 5, clr['txt1'],
+                                       'restart', 20, 5, centered='c'),
+            *[static_itembox(_add((1 + 10, 1 + 120), self.getpos((i, j))),
+                             (self.grid_lattice[0] - 2, self.grid_lattice[1] - 2), clr['0'], self.grid_radius,
+                             centered='c') for i in range(n) for j in range(n)]
+        ])
+        self.static_itembox_list.offset = game_offset
+
+        self.grid_itembox_list = ItemBoxList([])
+        self.grid_itembox_list.offset = _add(game_offset, grid_offset)
+
+        self.over_itembox_list = ItemBoxList([
+            static_itembox((0, 0), grid_size, clr['fog'], min(self.grid_radius, 5) * 2, clr['txt0'],
+                           'Game Over!', 60, 10, centered='cx').setr(text_pos=(1 / 2, 1 / 3)),
+            btn3_box := static_itembox((125, 195), (140, 40), clr['8'], 5, clr['txt1'],
+                                       'menu', 30, 5, centered='c'),
+            btn4_box := static_itembox((125, 245), (140, 40), clr['32'], 5, clr['txt1'],
+                                       'restart', 30, 5, centered='c'),
+
+        ])
+        self.over_itembox_list.offset = _add(_ldiv(_sub(screen_size, game_size), 2), grid_offset)
+        self.over_itembox_list.hide = True
+
+        self.lnum_topleft, self.rnum_topleft, self.lrnum_size = (10, 80), (205, 80), (185, 30)
+        self.lradd_movex, self.lradd_alpha, self.lradd_dalpha, self.lradd_anilen = (0, -30), 0.7, -0.01, 24
+
+        self.num_itembox_list = ItemBoxList([
+            static_itembox(self.lnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
+                           '', 20, 5, centered='r'),
+            static_itembox(self.rnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
+                           '', 20, 5, centered='r'),
+            dynamic_itembox(None, self.lnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
+                            '', 20, 5, centered='r'),
+            dynamic_itembox(None, self.rnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
+                            '', 20, 5, centered='r'),
+        ])
+        self.lnum_itembox, self.rnum_itembox, self.ladd_itembox, self.radd_itembox = self.num_itembox_list.ls
+        self.num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
+
+        self.button_list = ButtonList([
+            Button(btn1_box, self.static_itembox_list),
+            Button(btn2_box, self.static_itembox_list, g2048_init, (n, n)),
+            Button(btn3_box, self.over_itembox_list),
+            Button(btn4_box, self.over_itembox_list, g2048_init, (n, n)),
+        ])
+
+    def getpos(self, pos):
+        return _add(_dproduct(_transpose(pos), self.grid_lattice),
+                    _toint(_dproduct(_add(_transpose(pos), (1, 1)), self.grid_mean_gap)))
+
+g2048_layout: Layout
 
 def getlayout(n, m):
-    global g_n, g_m, g_addfactor
-    global grid_lattice, grid_mean_gap, grid_radius
-    global static_itembox_list, over_itembox_list, grid_itembox_list, num_itembox_list
-
-    global lnum_topleft, rnum_topleft, lrnum_size
-    global lradd_movex, lradd_alpha, lradd_dalpha, lradd_anilen
-    global lnum_itembox, rnum_itembox, ladd_itembox, radd_itembox
-
-    global button_list
-
+    global g_n, g_m, g2048_layout, g_addfactor
     g_n, g_m = n, m
     g_addfactor = 16
-    grid_lattice = ((390-30*min(g_m, 4)//4)//g_m, (390-30*min(g_n, 4)//4)//g_n)
+    g2048_layout = Layout(n, m)
 
-    grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(grid_lattice, (g_m, g_n))), (1/(g_m+1), 1/(g_n+1)))
-    grid_radius = 1+16//max(g_n, g_m)
-    static_itembox_list = ItemBoxList([
-        static_itembox((0, 0), game_size, clr['bg'], 10, clr['txt0'],
-                       '', 36, 10),
-        static_itembox((10, 10), (390, 70), clr['bg'], 5, clr['txt0'],
-                       '2048_game', 50, 5),
-        static_itembox((10, 80), (190, 30), clr['4'], 5, clr['txt0'],
-                       'current: ', 20, 5),
-        static_itembox((210, 80), (190, 30), clr['4'], 5, clr['txt0'],
-                       'best: ', 20, 5),
-        static_itembox((10, 120), (390, 390), clr['grid'], min(grid_radius, 5) * 2),
-        btn1_box:=static_itembox((295, 20), (105, 25), clr['8'], 5, clr['txt1'],
-                       'menu', 20, 5, centered='c'),
-        btn2_box:=static_itembox((295, 50), (105, 25), clr['32'], 5, clr['txt1'],
-                       'restart', 20, 5, centered='c'),
-        *[static_itembox(_add((1 + 10, 1 + 120), _getpos((i, j))),
-                         (grid_lattice[0] - 2, grid_lattice[1] - 2), clr['0'], grid_radius,
-                         centered='c') for i in range(g_n) for j in range(g_m)]
-    ])
-    static_itembox_list.offset = game_offset
-
-    grid_itembox_list = ItemBoxList([])
-    grid_itembox_list.offset = _add(game_offset, grid_offset)
-
-    over_itembox_list = ItemBoxList([
-        static_itembox((0, 0), grid_size, clr['fog'], min(grid_radius, 5) * 2, clr['txt0'],
-                       'Game Over!', 60, 10, centered='cx').setr(text_pos=(1 / 2, 1 / 3)),
-        btn3_box:=static_itembox((125, 195), (140, 40), clr['8'], 5, clr['txt1'],
-                       'menu', 30, 5, centered='c'),
-        btn4_box:=static_itembox((125, 245), (140, 40), clr['32'], 5, clr['txt1'],
-                       'restart', 30, 5, centered='c'),
-
-    ])
-    over_itembox_list.offset = _add(_ldiv(_sub(screen_size, game_size), 2), grid_offset)
-    over_itembox_list.hide = True
-
-
-    lnum_topleft, rnum_topleft, lrnum_size = (10, 80), (205, 80), (185, 30)
-    lradd_movex, lradd_alpha, lradd_dalpha, lradd_anilen = (0, -30), 0.7, -0.01, 24
-
-    num_itembox_list = ItemBoxList([
-        static_itembox(lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                       '', 20, 5, centered='r'),
-        static_itembox(rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                       '', 20, 5, centered='r'),
-        dynamic_itembox(None, lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                        '', 20, 5, centered='r'),
-        dynamic_itembox(None, rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
-                        '', 20, 5, centered='r'),
-    ])
-    lnum_itembox, rnum_itembox, ladd_itembox, radd_itembox = num_itembox_list.ls
-    num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
-
-    button_list = ButtonList([
-        Button(btn1_box, static_itembox_list),
-        Button(btn2_box, static_itembox_list, g2048_init, (g_n, g_m)),
-        Button(btn3_box, over_itembox_list),
-        Button(btn4_box, over_itembox_list, g2048_init, (g_n, g_m)),
-    ])
 
 g2048_current_score = 0
 g2048_best_score = 0
 class NumBoard:
-    def __init__(self):
-        self.lnum_bind = lnum_itembox
-        self.rnum_bind = rnum_itembox
-        self.ladd_bind = ladd_itembox
-        self.radd_bind = radd_itembox
+    def __init__(self, layout):
+        self.lnum_bind = layout.lnum_itembox
+        self.rnum_bind = layout.rnum_itembox
+        self.ladd_bind = layout.ladd_itembox
+        self.radd_bind = layout.radd_itembox
+        self.layout = layout
         self.refresh(0, 0)
 
     @staticmethod
@@ -278,28 +270,28 @@ class NumBoard:
         self.lnum_bind.text = self._tonum(g2048_current_score, False)
         self.lnum_bind.changed = True
         if ladd:
-            self.ladd_bind = dynamic_itembox(self.ladd_bind, lnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+            self.ladd_bind = dynamic_itembox(self.ladd_bind, self.layout.lnum_topleft, self.layout.lrnum_size, clr['null'], 5, clr['txt0'],
                                              self._tonum(ladd), 20, 5, centered='r')
-            self.ladd_bind.setr(alpha=lradd_alpha, dalpha=lradd_dalpha, realphaed=True,
-                                start=lnum_topleft, end=_add(lradd_movex, lnum_topleft),
-                                state=0, endstate=lradd_anilen)
+            self.ladd_bind.setr(alpha=self.layout.lradd_alpha, dalpha=self.layout.lradd_dalpha, realphaed=True,
+                                start=self.layout.lnum_topleft, end=_add(self.layout.lradd_movex, self.layout.lnum_topleft),
+                                state=0, endstate=self.layout.lradd_anilen)
         self.rnum_bind.text = self._tonum(g2048_best_score, False)
         self.rnum_bind.changed = True
         if radd:
-            self.radd_bind = dynamic_itembox(self.radd_bind, rnum_topleft, lrnum_size, clr['null'], 5, clr['txt0'],
+            self.radd_bind = dynamic_itembox(self.radd_bind, self.layout.rnum_topleft, self.layout.lrnum_size, clr['null'], 5, clr['txt0'],
                                              self._tonum(radd), 20, 5, centered='r')
-            self.radd_bind.setr(alpha=lradd_alpha, dalpha=lradd_dalpha, realphaed=True,
-                                start=rnum_topleft, end=_add(lradd_movex, rnum_topleft),
-                                state=0, endstate=lradd_anilen)
+            self.radd_bind.setr(alpha=self.layout.lradd_alpha, dalpha=self.layout.lradd_dalpha, realphaed=True,
+                                start=self.layout.rnum_topleft, end=_add(self.layout.lradd_movex, self.layout.rnum_topleft),
+                                state=0, endstate=self.layout.lradd_anilen)
 
-    def add(self, x):
-        global g2048_current_score, g2048_best_score
+    def add(self, x, g2048_current_score, g2048_best_score):
         g2048_current_score += x
         ladd, radd = x, 0
         if g2048_current_score > g2048_best_score:
             radd = g2048_current_score - g2048_best_score
             g2048_best_score = g2048_current_score
         self.refresh(ladd, radd)
+        return g2048_current_score, g2048_best_score
 numboard: NumBoard
 
 # g_n, g_m, g_addfactor, grid_offset, grid_size, grid_lattice, grid_mean_gap, grid_radius = getlayout(4, 4)
@@ -319,37 +311,38 @@ def to_str(x):
         if x == -3: return '×0'
         return '×'+str(-x)
     return str(x)
-def grid_palette(s):
+def grid_palette(s, layout):
     if s in clr: return clr[s], clr['txt0' if s in txt0 else 'txt1']
     return clr['default'], clr['txt1']
-def grid_font(s):
-    return min(grid_lattice[0]*5//3 // max(len(s), 4), grid_lattice[1]*4//9)
+def grid_font(s, layout):
+    return min(layout.grid_lattice[0]*5//3 // max(len(s), 4), layout.grid_lattice[1]*4//9)
 
 class GridBox:
     def set_to(self, pos, x):
         self.x = x
         s = to_str(x)
-        c1, c2 = grid_palette(s)
-        fnt = grid_font(s)
-        gridpos = _getpos(pos)
-        self.bind = dynamic_itembox(self.bind, gridpos, grid_lattice, c1, grid_radius, c2, s, fnt, 0, 'c')
-    def __init__(self, pos, x): # plan + lazy deleting
+        c1, c2 = grid_palette(s, self.layout)
+        fnt = grid_font(s, self.layout)
+        gridpos = self.layout.getpos(pos)
+        self.bind = dynamic_itembox(self.bind, gridpos, self.layout.grid_lattice, c1, self.layout.grid_radius, c2, s, fnt, 0, 'c')
+    def __init__(self, pos, x, layout): # plan + lazy deleting
         # self.pos = None
         self.x = None
         self.bind = None
+        self.layout = layout
         self.set_to(pos, x)
     def setani_move(self, start, end):
         self.bind.state = 0
-        spos = _getpos(start)
-        epos = _getpos(end)
+        spos = self.layout.getpos(start)
+        epos = self.layout.getpos(end)
         self.bind.topleft = spos
         self.bind.start = spos
         self.bind.end = epos
     def setani_resize(self, pos, start = 0.0, end = 1.0):
         self.bind.state = 0
-        ssiz = _toint(_mul(grid_lattice, start))
-        esiz = _toint(_mul(grid_lattice, end))
-        cpos = _add(_getpos(pos), _ldiv(grid_lattice, 2))
+        ssiz = _toint(_mul(self.layout.grid_lattice, start))
+        esiz = _toint(_mul(self.layout.grid_lattice, end))
+        cpos = _add(self.layout.getpos(pos), _ldiv(self.layout.grid_lattice, 2))
         spos = _sub(cpos, _ldiv(ssiz, 2))
         epos = _sub(cpos, _ldiv(esiz, 2))
         self.bind.topleft = spos
@@ -456,7 +449,11 @@ def g2048_move(direction, show=1):
 # customed
 basicfactor = 2
 def getrandomblock(p=0):
-    if p == 0:
+    p = -100
+    if p == -100:
+        r = random.randint(0, 99)
+        return (2 if (r < 10) else 1) * basicfactor
+    elif p == 0:
         r = random.randint(0, 99)
         if r < 94:
             return (2 if (r<10) else 1)*basicfactor
@@ -544,7 +541,7 @@ def g2048_input(key): #!
 sched_queue: deque
 sched_cnt: int
 def g2048_handle(events, show=0):
-    global sched_cnt
+    global sched_cnt, g2048_current_score, g2048_best_score
     if events is None: return
     if events is SchedEnd: sched_cnt -= 1; return
     showtmp = {}
@@ -560,22 +557,22 @@ def g2048_handle(events, show=0):
             grid.get(start).setani_move(start, end)
         elif name == '$mov':
             start, end = event[1:] #!
-            grid.movebind(start, end, grid_itembox_list)#?
+            grid.movebind(start, end, g2048_layout.grid_itembox_list)#?
         elif name == 'double':
             pos, x = event[1:] #!
             grid.get(pos).set_to(pos, x)
         elif name == 'new':
             pos, x = event[1:] #!
             # print(pos, x)
-            grid.newbind(pos, GridBox(pos, x), grid_itembox_list)
+            grid.newbind(pos, GridBox(pos, x, g2048_layout), g2048_layout.grid_itembox_list)
             grid.get(pos).setani_resize(pos, 0.5)
             # print(*map(type, grid_itembox_list.ls))
         elif name == 'score':
             x, = event[1:]
-            numboard.add(x)
+            g2048_current_score, g2048_best_score = numboard.add(x, g2048_current_score, g2048_best_score)
             #!
         elif name == 'over':
-            over_itembox_list.sethide(False)
+            g2048_layout.over_itembox_list.sethide(False)
     if show==1: print(' '.join(f"{x}*{y}" for x, y in showtmp.items()))
 
 def g2048_process():
@@ -584,11 +581,11 @@ def g2048_process():
     if sched_queue:
         g2048_handle(sched_queue.popleft())
     # print(grid.bind)
-    grid.send_to_list(grid_itembox_list) #!
+    grid.send_to_list(g2048_layout.grid_itembox_list) #!
     # grid.con_output()
-    grid_itembox_list.nextstate(display_screen)
-    num_itembox_list.nextstate(display_screen)
-    over_itembox_list.nextstate(display_screen)
+    g2048_layout.grid_itembox_list.nextstate(display_screen)
+    g2048_layout.num_itembox_list.nextstate(display_screen)
+    g2048_layout.over_itembox_list.nextstate(display_screen)
 
 grid: Grid
 def g2048_init(n, m):
@@ -602,11 +599,11 @@ def g2048_init(n, m):
     getlayout(n, m)
     grid = Grid(g_n, g_m)
     g2048_current_score = 0
-    numboard = NumBoard()
+    numboard = NumBoard(g2048_layout)
     anips = 12
     if g_n*g_m > 400: anips = 8
     if g_n*g_m > 1000: anips = 4
-    static_itembox_list.blit_to(bgscreen)
+    g2048_layout.static_itembox_list.blit_to(bgscreen)
     q2 = []
     alive = g2048_addnew(q2)
     if not alive:
@@ -653,7 +650,8 @@ def UIloop():
     running = True
     refresh = 0
     init_screen()
-    g2048_init(9, 9)
+    g2048_init(4, 4)
+    aa = 0
     while running:
         mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
@@ -666,8 +664,10 @@ def UIloop():
                     elif fn == 2:
                         g2048_init(g_n+1, g_m+1)
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                button_list.click(mouse_pos)
-        button_list.hover(mouse_pos)
+                g2048_layout.button_list.click(mouse_pos)
+        g2048_layout.button_list.hover(mouse_pos)
+        '''aa = (aa+1)%4
+        g2048_input('wasd'[aa])'''
         if refresh == 0: # plan: lazy updating
             display_screen.blit(bgscreen, (0, 0))
             g2048_process()
