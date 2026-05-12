@@ -3,6 +3,7 @@ import pygame
 from collections import deque
 import random
 
+
 pygame.init()
 screen_size = (600, 600)
 display_screen = pygame.display.set_mode(size=screen_size)
@@ -15,9 +16,18 @@ def _transpose(x): return x[1], x[0]
 def _toint(x): return int(x[0]), int(x[1])
 def _simtoint(x): return int(x[0]+.5), int(x[1]+.5)
 def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
-font_names = ['Microsoft YaHei', 'Arial']
+font_names = ['Calibri', 'Microsoft YaHei', 'Arial']
 default_font_size = 36
+def find_font():
+    for name in font_names:
+        if pygame.font.match_font(name):
+            return name
+    return None
 font_in = {x:pygame.font.SysFont(font_names, x) for x in range(120)}
+def get_text_size(text, font_size, color=(0, 0, 0)):
+    font = font_in[font_size]
+    font_surface = font.render(text, True, color)
+    return font_surface.get_size()
 
 anips = 12
 class ItemBox:
@@ -107,10 +117,9 @@ def static_itembox(topleft, size, bgcolor, radius, color=(0,0,0), text='', font_
 def dynamic_itembox(sf, topleft, size, bgcolor, radius, color=(0,0,0), text='', font_size=0, padding=0, centered='l'):
     if sf is None: itembox = ItemBox()
     else: itembox = sf
-    (
-        itembox.topleft, itembox.size, itembox.bgcolor, itembox.color,
-        itembox.text, itembox.fontsize, itembox.padding, itembox.radius
-    ) = topleft, size, bgcolor, color, text, font_size, padding, radius
+    itembox.setr(topleft=topleft, size=size, bgcolor=bgcolor,
+                 color=color, text=text, fontsize=font_size,
+                 padding=padding, radius=radius)
     itembox.static = False; itembox.dynamic = True; itembox.zaxis = -1
     itembox.centered = centered; itembox.state = itembox.endstate
     itembox.updating = True; itembox.changed = True
@@ -121,7 +130,7 @@ class ItemBoxList:
         self.offset = (0, 0)
         self.hide = False
     def nextstate(self, screen):
-        #dirty_
+        #dirty_rect
         for x in self.ls:
             x.nextstate()
             if x.changed:
@@ -146,13 +155,14 @@ class ItemBoxList:
 
 clr = {
     'txt0': (119, 110, 101), 'txt1': (255, 255, 255),
-    'bg': (250, 248, 239), 'grid': (187, 173, 160),
-    '0': (205, 193, 180), '2': (238, 228, 218), '4': (237, 224, 200), '8': (242, 177, 121),
+    'bg': (250, 248, 239), 'grid': (187, 173, 160), 'line': (224, 212, 208),
+    '0': (205, 193, 180), '2': (238, 228, 216), '4': (237, 224, 200), '8': (242, 177, 121),
     '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
     '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
     '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
     '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (192, 32, 24),
     'fog': (255, 255, 255, 128),
+    'in1': (244, 238, 232),
     'null': (0, 0, 0, 0),
     'default': (32, 32, 32)
 }
@@ -160,9 +170,7 @@ txt0 = {
     '2', '4', '#'
 }
 
-choicenm = [
-    (3, 3), (3, 4), (4, 3), (4, 4), (4, 5), (5, 4), (5, 5), (9, 9), (15, 15), (26, 26)
-]
+
 default_choice = (4, 4)
 
 game_size = (410, 520)
@@ -175,11 +183,10 @@ class Layout:
     def __init__(self, n, m):
         self.grid_lattice = ((390 - 30 * min(m, 4) // 4) // m, (390 - 30 * min(n, 4) // 4) // n)
 
-        self.grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(self.grid_lattice, (n, n))), (1 / (n + 1), 1 / (n + 1)))
+        self.grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(self.grid_lattice, (m, n))), (1/(m+1), 1/(n+1)))
         self.grid_radius = 1 + 16 // max(n, n)
-        self.static_itembox_list = ItemBoxList([
-            static_itembox((0, 0), game_size, clr['bg'], 10, clr['txt0'],
-                           '', 36, 10),
+        self.bg_itembox_list = ItemBoxList([
+            static_itembox((0, 0), game_size, clr['bg'], 10),
             static_itembox((10, 10), (390, 70), clr['bg'], 5, clr['txt0'],
                            '2048_game', 50, 5),
             static_itembox((10, 80), (190, 30), clr['4'], 5, clr['txt0'],
@@ -187,15 +194,11 @@ class Layout:
             static_itembox((210, 80), (190, 30), clr['4'], 5, clr['txt0'],
                            'best: ', 20, 5),
             static_itembox((10, 120), (390, 390), clr['grid'], min(self.grid_radius, 5) * 2),
-            btn1_box := static_itembox((295, 20), (105, 25), clr['8'], 5, clr['txt1'],
-                                       'menu', 20, 5, centered='c'),
-            btn2_box := static_itembox((295, 50), (105, 25), clr['32'], 5, clr['txt1'],
-                                       'restart', 20, 5, centered='c'),
             *[static_itembox(_add((1 + 10, 1 + 120), self.getpos((i, j))),
                              (self.grid_lattice[0] - 2, self.grid_lattice[1] - 2), clr['0'], self.grid_radius,
-                             centered='c') for i in range(n) for j in range(n)]
+                             centered='c') for i in range(n) for j in range(m)]
         ])
-        self.static_itembox_list.offset = game_offset
+        self.bg_itembox_list.offset = game_offset
 
         self.grid_itembox_list = ItemBoxList([])
         self.grid_itembox_list.offset = _add(game_offset, grid_offset)
@@ -215,7 +218,7 @@ class Layout:
         self.lnum_topleft, self.rnum_topleft, self.lrnum_size = (10, 80), (205, 80), (185, 30)
         self.lradd_movex, self.lradd_alpha, self.lradd_dalpha, self.lradd_anilen = (0, -30), 0.7, -0.01, 24
 
-        self.num_itembox_list = ItemBoxList([
+        self.changing_itembox_list = ItemBoxList([
             static_itembox(self.lnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
                            '', 20, 5, centered='r'),
             static_itembox(self.rnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
@@ -224,20 +227,132 @@ class Layout:
                             '', 20, 5, centered='r'),
             dynamic_itembox(None, self.rnum_topleft, self.lrnum_size, clr['null'], 5, clr['txt0'],
                             '', 20, 5, centered='r'),
+            btn1_box := static_itembox((295, 20), (105, 25), clr['8'], 5, clr['txt1'],
+                                       'menu', 20, 5, centered='c'),
+            btn2_box := static_itembox((295, 50), (105, 25), clr['32'], 5, clr['txt1'],
+                                       'restart', 20, 5, centered='c'),
         ])
-        self.lnum_itembox, self.rnum_itembox, self.ladd_itembox, self.radd_itembox = self.num_itembox_list.ls
-        self.num_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
+        self.lnum_itembox, self.rnum_itembox, self.ladd_itembox, self.radd_itembox = self.changing_itembox_list.ls[:4]
+        self.changing_itembox_list.offset = _ldiv(_sub(screen_size, game_size), 2)
 
         self.button_list = ButtonList([
-            Button(btn1_box, self.static_itembox_list),
-            Button(btn2_box, self.static_itembox_list, g2048_init, (n, n)),
-            Button(btn3_box, self.over_itembox_list),
-            Button(btn4_box, self.over_itembox_list, g2048_init, (n, n)),
+            Button(btn1_box, self.bg_itembox_list, menu_init),
+            Button(btn2_box, self.bg_itembox_list, g2048_init, (n, m)),
+            Button(btn3_box, self.over_itembox_list, menu_init),
+            Button(btn4_box, self.over_itembox_list, g2048_init, (n, m)),
         ])
 
     def getpos(self, pos):
-        return _add(_dproduct(_transpose(pos), self.grid_lattice),
-                    _toint(_dproduct(_add(_transpose(pos), (1, 1)), self.grid_mean_gap)))
+        pos = _transpose(pos)
+        return _add(_dproduct(pos, self.grid_lattice),
+                    _toint(_dproduct(_add(pos, (1, 1)), self.grid_mean_gap)))
+
+class Menu:
+    def addn(self, x):
+        if self.set_n+x in range(1, 256):
+            self.set_n += x
+            self.change_label1()
+    def addm(self, x):
+        if self.set_m+x in range(1, 256):
+            self.set_m += x
+            self.change_label2()
+    def setmns(self):
+        self.set_n = g_n
+        self.set_m = g_m
+        self.score_display.setr(text=to_str(g2048_best_score), changed=1)
+        self.change_label1()
+        self.change_label2()
+    def change_label1(self):
+        self.label_1.setr(text=to_str(self.set_n), changed=1)
+
+    def change_label2(self):
+        self.label_2.setr(text=to_str(self.set_m), changed=1)
+    def __init__(self):
+        n_text_size = get_text_size('n=', 28)
+        m_text_size = get_text_size('m=', 28)
+        self.set_n = g_n
+        self.set_m = g_m
+        self.bg_itembox_list = ItemBoxList([
+            static_itembox((0, 0), game_size, clr['bg'], 10),
+            static_itembox((10, 10), (390, 70), clr['null'], 5, clr['txt0'],
+                           '2048_menu', 50, 5),
+            # static_itembox((10, 75), (390, 2), clr['line'], 1),
+
+            static_itembox((20, line0:=80), (370, 45), clr['4'], 5, clr['txt0'],
+                           'Best Score: ', 26, 8),
+
+            static_itembox((10, (line1:=130)+2), (390, 41), clr['null'], 0),
+            static_itembox((10, line1+2), (4, 41), clr['32'], 0),
+            static_itembox((20, line1), (390, 45), clr['null'], 5, clr['txt0'],
+                           'Size', 30, 5),
+
+            static_itembox((20, line2:=185), (165, 50), clr['in1'], 5),
+            static_itembox((225, line2), (165, 50), clr['in1'], 5),
+
+            static_itembox((40, line2), (12 + n_text_size[0] - 20, 50), clr['4'], 0),
+            static_itembox((20, line2), (12 + n_text_size[0], 50), clr['4'], 5, clr['txt0'],
+                           'n=', 28, 6),
+
+            static_itembox((245, line2), (12 + m_text_size[0] - 20, 50), clr['4'], 0),
+            static_itembox((225, line2), (12 + m_text_size[0], 50), clr['4'], 5, clr['txt0'],
+                           'm=', 28, 6),
+
+            static_itembox((10, (line3:=255)+2), (390, 41), clr['null'], 0),
+            static_itembox((10, line3+2), (4, 41), clr['32'], 0),
+            static_itembox((20, line3), (390, 45), clr['null'], 5, clr['txt0'],
+                           'Mode', 30, 5),
+
+            static_itembox((20, 310), (370, 50), clr['in1'], 5),
+        ])
+
+        self.bg_itembox_list.offset = game_offset
+        btn_offhover, btn_onhover = clr['8'], None
+        self.changing_itembox_list = ItemBoxList([
+            sc_1:=static_itembox((245, line0), (145, 45), clr['null'], 5, clr['txt0'],
+                           '0', 26, 8, centered='r'),
+
+            # bn_0:=static_itembox((20, line2), (165, 50), clr['null'], 5),
+            lb_1:=static_itembox((20+40, line2), (90, 50), clr['null'], 0, clr['txt0'],
+                                 '0', 28, 6, centered='r'),
+            bn_u1:=static_itembox((20+135, line2+10), (30, 14), btn_offhover, 0),
+            bn_u0:=static_itembox((20+135, line2), (30, 24), btn_offhover, 5, clr['txt1'],
+                           '▲',16, centered='c'),
+            bn_d1:=static_itembox((20+135, line2+26), (30, 14), btn_offhover, 0),
+            bn_d0:=static_itembox((20+135, line2+26), (30, 24), btn_offhover, 5, clr['txt1'],
+                           '▼',16, centered='c'),
+
+            # bm_0:=static_itembox((225, line2), (165, 50), clr['null'], 5),
+            lb_2:=static_itembox((225+40, line2), (90, 50), clr['null'], 0, clr['txt0'],
+                                   '0', 28, 6, centered='r'),
+            bm_u1:=static_itembox((225+135, line2+10), (30, 14), btn_offhover, 0),
+            bm_u0:=static_itembox((225+135, line2), (30, 24), btn_offhover, 5, clr['txt1'],
+                           '▲',16, centered='c'),
+            bm_d1:=static_itembox((225+135, line2+26), (30, 14), btn_offhover, 0),
+            bm_d0:=static_itembox((225+135, line2+26), (30, 24), btn_offhover, 5, clr['txt1'],
+                           '▼',16, centered='c'),
+
+            b_start:=static_itembox((20, 440), (370, 60), clr['32'], 10, clr['txt1'],
+                                    'Start', 38, centered='c')
+
+        ])
+        self.changing_itembox_list.offset = game_offset
+
+        self.score_display = sc_1
+        self.label_1 = lb_1
+        self.label_2 = lb_2
+        self.button_list = ButtonList([
+            Button(bn_u0, self.changing_itembox_list, show=[bn_u0, bn_u1],
+                   color=[btn_offhover, btn_onhover], fn=self.addn, attr=(1,)),
+            Button(bn_d0, self.changing_itembox_list, show=[bn_d0, bn_d1],
+                   color=[btn_offhover, btn_onhover], fn=self.addn, attr=(-1,)),
+            Button(bm_u0, self.changing_itembox_list, show=[bm_u0, bm_u1],
+                   color=[btn_offhover, btn_onhover], fn=self.addm, attr=(1,)),
+            Button(bm_d0, self.changing_itembox_list, show=[bm_d0, bm_d1],
+                   color=[btn_offhover, btn_onhover], fn=self.addm, attr=(-1,)),
+            Button(b_start, self.changing_itembox_list,
+                   fn=lambda x: g2048_init(x.set_n, x.set_m), attr=(self,))
+        ])
+menu_layout: Menu
 
 g2048_layout: Layout
 
@@ -246,6 +361,10 @@ def getlayout(n, m):
     g_n, g_m = n, m
     g_addfactor = 16
     g2048_layout = Layout(n, m)
+
+def getmenu():
+    global menu_layout, menubgscreen
+    menu_layout = Menu()
 
 
 g2048_current_score = 0
@@ -257,7 +376,7 @@ class NumBoard:
         self.ladd_bind = layout.ladd_itembox
         self.radd_bind = layout.radd_itembox
         self.layout = layout
-        self.refresh(0, 0)
+        self.refresh(0, 0, g2048_current_score, g2048_best_score)
 
     @staticmethod
     def _tonum(x, add=True):
@@ -266,8 +385,8 @@ class NumBoard:
             ret = f'{float(x):+.4e}' if add else f'{float(x):.4e}'
         return ret
 
-    def refresh(self, ladd, radd):
-        self.lnum_bind.text = self._tonum(g2048_current_score, False)
+    def refresh(self, ladd, radd, current_score, best_score):
+        self.lnum_bind.text = self._tonum(current_score, False)
         self.lnum_bind.changed = True
         if ladd:
             self.ladd_bind = dynamic_itembox(self.ladd_bind, self.layout.lnum_topleft, self.layout.lrnum_size, clr['null'], 5, clr['txt0'],
@@ -275,7 +394,7 @@ class NumBoard:
             self.ladd_bind.setr(alpha=self.layout.lradd_alpha, dalpha=self.layout.lradd_dalpha, realphaed=True,
                                 start=self.layout.lnum_topleft, end=_add(self.layout.lradd_movex, self.layout.lnum_topleft),
                                 state=0, endstate=self.layout.lradd_anilen)
-        self.rnum_bind.text = self._tonum(g2048_best_score, False)
+        self.rnum_bind.text = self._tonum(best_score, False)
         self.rnum_bind.changed = True
         if radd:
             self.radd_bind = dynamic_itembox(self.radd_bind, self.layout.rnum_topleft, self.layout.lrnum_size, clr['null'], 5, clr['txt0'],
@@ -284,21 +403,22 @@ class NumBoard:
                                 start=self.layout.rnum_topleft, end=_add(self.layout.lradd_movex, self.layout.rnum_topleft),
                                 state=0, endstate=self.layout.lradd_anilen)
 
-    def add(self, x, g2048_current_score, g2048_best_score):
-        g2048_current_score += x
+    def add(self, x, current_score, best_score):
+        current_score += x
         ladd, radd = x, 0
-        if g2048_current_score > g2048_best_score:
-            radd = g2048_current_score - g2048_best_score
-            g2048_best_score = g2048_current_score
-        self.refresh(ladd, radd)
-        return g2048_current_score, g2048_best_score
+        if current_score > best_score:
+            radd = current_score - best_score
+            best_score = current_score
+        self.refresh(ladd, radd, current_score, best_score)
+        return current_score, best_score
 numboard: NumBoard
 
 # g_n, g_m, g_addfactor, grid_offset, grid_size, grid_lattice, grid_mean_gap, grid_radius = getlayout(4, 4)
 
 
 bgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
-aniscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
+menubgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
+# aniscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 def init_screen():
     display_screen.fill(clr['2'])
     display_screen.blit(bgscreen, (0, 0))
@@ -315,7 +435,7 @@ def grid_palette(s, layout):
     if s in clr: return clr[s], clr['txt0' if s in txt0 else 'txt1']
     return clr['default'], clr['txt1']
 def grid_font(s, layout):
-    return min(layout.grid_lattice[0]*5//3 // max(len(s), 4), layout.grid_lattice[1]*4//9)
+    return min(layout.grid_lattice[0]*5//3 // max(len(s), 4), layout.grid_lattice[1]*4//9, 100)
 
 class GridBox:
     def set_to(self, pos, x):
@@ -412,7 +532,7 @@ def mergescore(x, y):
         else: return 2**((-x+2)*4)
     else: return 0
 
-def g2048_move(direction, show=1):
+def g2048_move(direction, show=0):
     # n, m = grid.n, grid.m
     rj = grid.di_range[direction]; ri = grid.di_range[(direction+1)%4]
     t = grid.di_t[direction]
@@ -449,7 +569,7 @@ def g2048_move(direction, show=1):
 # customed
 basicfactor = 2
 def getrandomblock(p=0):
-    p = -100
+    # p = -100
     if p == -100:
         r = random.randint(0, 99)
         return (2 if (r < 10) else 1) * basicfactor
@@ -572,6 +692,7 @@ def g2048_handle(events, show=0):
             g2048_current_score, g2048_best_score = numboard.add(x, g2048_current_score, g2048_best_score)
             #!
         elif name == 'over':
+            g2048_over = 1
             g2048_layout.over_itembox_list.sethide(False)
     if show==1: print(' '.join(f"{x}*{y}" for x, y in showtmp.items()))
 
@@ -581,11 +702,25 @@ def g2048_process():
     if sched_queue:
         g2048_handle(sched_queue.popleft())
     # print(grid.bind)
+
+    display_screen.blit(bgscreen, (0, 0))
     grid.send_to_list(g2048_layout.grid_itembox_list) #!
     # grid.con_output()
     g2048_layout.grid_itembox_list.nextstate(display_screen)
-    g2048_layout.num_itembox_list.nextstate(display_screen)
+    g2048_layout.changing_itembox_list.nextstate(display_screen)
     g2048_layout.over_itembox_list.nextstate(display_screen)
+
+
+def menu_init():
+    global isgaming
+    isgaming = False
+    menu_layout.setmns()
+    menu_layout.bg_itembox_list.blit_to(menubgscreen)
+    menu_layout.changing_itembox_list.nextstate(display_screen)
+
+def menu_process():
+    display_screen.blit(menubgscreen, (0, 0))
+    menu_layout.changing_itembox_list.nextstate(display_screen)
 
 grid: Grid
 def g2048_init(n, m):
@@ -594,6 +729,7 @@ def g2048_init(n, m):
     global anips
     global alive
     global g2048_current_score
+    global isgaming
     sched_queue = deque()
     sched_cnt = 0
     getlayout(n, m)
@@ -603,7 +739,8 @@ def g2048_init(n, m):
     anips = 12
     if g_n*g_m > 400: anips = 8
     if g_n*g_m > 1000: anips = 4
-    g2048_layout.static_itembox_list.blit_to(bgscreen)
+    isgaming = True
+    g2048_layout.bg_itembox_list.blit_to(bgscreen)
     q2 = []
     alive = g2048_addnew(q2)
     if not alive:
@@ -613,21 +750,38 @@ def g2048_init(n, m):
     g2048_process()
 
 
-key_map = {pygame.K_a: (1, 'a'), pygame.K_s: (1, 's'), pygame.K_d: (1, 'd'), pygame.K_w: (1, 'w'),
-           pygame.K_LEFT: (1, 'a'), pygame.K_DOWN: (1, 's'), pygame.K_RIGHT: (1, 'd'), pygame.K_UP: (1, 'w'),
-           pygame.K_ESCAPE: (2, 'esc')}
+g2048_key_map = {pygame.K_a: (1, 'a'), pygame.K_s: (1, 's'), pygame.K_d: (1, 'd'), pygame.K_w: (1, 'w'),
+                 pygame.K_LEFT: (1, 'a'), pygame.K_DOWN: (1, 's'), pygame.K_RIGHT: (1, 'd'), pygame.K_UP: (1, 'w'),
+                 pygame.K_ESCAPE: (2, 'esc')}
 
 class Button:
-    def __init__(self, itembox, itemboxlist, fn=None, attr=()):
+    def __init__(self, itembox, itemboxlist, fn=None, attr=(), show=None, color=None):
         self.topleft = _add(itembox.topleft, itemboxlist.offset)
         self.size = itembox.size
         self.fn = fn
         self.attr = attr
         self.itembox = itembox
+        self.itemboxlist = itemboxlist
+        self.show = [itembox] if show is None else show
+        self.hovered = 0
+        self.hovercolor = [itembox.bgcolor,
+                           None] if color is None else color
+        if self.hovercolor[1] is None:
+            self.hovercolor[1] = self._darkcolor(itembox.bgcolor)
+    @staticmethod
+    def _darkcolor(x):
+        return tuple(max(c*33//32-18, 0) for c in x)
     def onclick(self):
         if self.fn is not None: self.fn(*self.attr)
-    def onhover(self):
-        pass
+    def inuse(self):
+        return not self.itemboxlist.hide
+    def onhover(self, b):
+        if b != self.hovered:
+            self.hovered = b
+            cl = self.hovercolor[b]
+            if cl is not None:
+                for x in self.show:
+                    x.setr(bgcolor=cl, changed=True)
     def __contains__(self, pos):
         return (self.topleft[0] <= pos[0] < self.topleft[0]+self.size[0]
                 and self.topleft[1] <= pos[1] < self.topleft[1]+self.size[1])
@@ -637,40 +791,51 @@ class ButtonList:
         self.ls = ls
     def click(self, pos):
         for btn in self.ls:
-            if pos in btn:
+            if pos in btn and btn.inuse():
                 btn.onclick()
     def hover(self, pos):
         for btn in self.ls:
-            if pos in btn:
-                btn.onhover()
+            if pos in btn and btn.inuse():
+                btn.onhover(1)
+            else:
+                btn.onhover(0)
 
 button_list: ButtonList
-
+isgaming = False
 def UIloop():
     running = True
-    refresh = 0
     init_screen()
-    g2048_init(4, 4)
-    aa = 0
+    g2048_init(4, 3)
+    getmenu()
     while running:
         mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key in key_map:
-                    fn, ch = key_map[event.key]
-                    if fn == 1:
-                        g2048_input(ch)
-                    elif fn == 2:
-                        g2048_init(g_n+1, g_m+1)
+                if event.key in g2048_key_map:
+                    if isgaming:
+                        fn, ch = g2048_key_map[event.key]
+                        if fn == 1:
+                            g2048_input(ch)
+                        elif fn == 2:
+                            g2048_init(g_n+1, g_m+1)
+                    else:
+                        pass
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                g2048_layout.button_list.click(mouse_pos)
-        g2048_layout.button_list.hover(mouse_pos)
-        '''aa = (aa+1)%4
-        g2048_input('wasd'[aa])'''
-        if refresh == 0: # plan: lazy updating
-            display_screen.blit(bgscreen, (0, 0))
+                if isgaming:
+                    g2048_layout.button_list.click(mouse_pos)
+                else:
+                    menu_layout.button_list.click(mouse_pos)
+        if isgaming:
+            '''aa = (aa+1)%4
+            g2048_input('wasd'[aa])'''
+            # plan: lazy updating
+            g2048_layout.button_list.hover(mouse_pos)
             g2048_process()
+            pygame.display.flip()
+        else:
+            menu_layout.button_list.hover(mouse_pos)
+            menu_process()
             pygame.display.flip()
         time_clock.tick(128)
 

@@ -27,6 +27,10 @@ Thumbs.db
 # 打包文件
 dist/
 build/
+*.dist/
+*.build/
+*.onefile-build/
+*.app/
 *.egg-info/
 
 # 测试和覆盖率
