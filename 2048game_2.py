@@ -16,14 +16,14 @@ def _transpose(x): return x[1], x[0]
 def _toint(x): return int(x[0]), int(x[1])
 def _simtoint(x): return int(x[0]+.5), int(x[1]+.5)
 def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
-font_names = ['Calibri', 'Microsoft YaHei', 'Arial']
-default_font_size = 36
+'''font_names = ['Calibri', 'Microsoft YaHei', 'Arial']
 def find_font():
     for name in font_names:
         if pygame.font.match_font(name):
             return name
-    return None
-font_in = {x:pygame.font.SysFont(font_names, x) for x in range(120)}
+    return None'''
+default_font_size = 36
+font_in = {x:pygame.font.Font('Arial.ttf', x) for x in range(120)}
 def get_text_size(text, font_size, color=(0, 0, 0)):
     font = font_in[font_size]
     font_surface = font.render(text, True, color)
@@ -179,8 +179,9 @@ grid_offset = (10, 120)
 grid_size = (390, 390)
 
 g_n: int; g_m: int; g_addfactor: int
+g_k: int
 class Layout:
-    def __init__(self, n, m):
+    def __init__(self, n, m, k):
         self.grid_lattice = ((390 - 30 * min(m, 4) // 4) // m, (390 - 30 * min(n, 4) // 4) // n)
 
         self.grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(self.grid_lattice, (m, n))), (1/(m+1), 1/(n+1)))
@@ -237,9 +238,9 @@ class Layout:
 
         self.button_list = ButtonList([
             Button(btn1_box, self.bg_itembox_list, menu_init),
-            Button(btn2_box, self.bg_itembox_list, g2048_init, (n, m)),
+            Button(btn2_box, self.bg_itembox_list, g2048_init, (n, m, k)),
             Button(btn3_box, self.over_itembox_list, menu_init),
-            Button(btn4_box, self.over_itembox_list, g2048_init, (n, m)),
+            Button(btn4_box, self.over_itembox_list, g2048_init, (n, m, k)),
         ])
 
     def getpos(self, pos):
@@ -256,22 +257,37 @@ class Menu:
         if self.set_m+x in range(1, 256):
             self.set_m += x
             self.change_label2()
+    def addk(self, x):
+        self.set_k -= x
+        self.set_k %= len(self.all_mode)
+        self.change_label3()
+    @staticmethod
+    def _tonum(x, l):
+        ret = f'{x}'
+        if len(ret)>l:
+            ret=f'{float(x):.{l-3}e}'
+        return ret
     def setmns(self):
         self.set_n = g_n
         self.set_m = g_m
-        self.score_display.setr(text=to_str(g2048_best_score), changed=1)
+        self.set_k = g_k
+        self.score_display.setr(text=self._tonum(g2048_best_score, 12), changed=1)
         self.change_label1()
         self.change_label2()
+        self.change_label3()
     def change_label1(self):
-        self.label_1.setr(text=to_str(self.set_n), changed=1)
-
+        self.label_1.setr(text=str(self.set_n), changed=1)
     def change_label2(self):
-        self.label_2.setr(text=to_str(self.set_m), changed=1)
+        self.label_2.setr(text=str(self.set_m), changed=1)
+    def change_label3(self):
+        self.label_3.setr(text=self.all_mode[self.set_k], changed=1)
     def __init__(self):
         n_text_size = get_text_size('n=', 28)
         m_text_size = get_text_size('m=', 28)
         self.set_n = g_n
         self.set_m = g_m
+        self.set_k = g_k
+        self.all_mode = ['Featured', 'Regular', '???']
         self.bg_itembox_list = ItemBoxList([
             static_itembox((0, 0), game_size, clr['bg'], 10),
             static_itembox((10, 10), (390, 70), clr['null'], 5, clr['txt0'],
@@ -302,13 +318,13 @@ class Menu:
             static_itembox((20, line3), (390, 45), clr['null'], 5, clr['txt0'],
                            'Mode', 30, 5),
 
-            static_itembox((20, 310), (370, 50), clr['in1'], 5),
+            static_itembox((20, line4:=310), (370, 50), clr['in1'], 5),
         ])
 
         self.bg_itembox_list.offset = game_offset
         btn_offhover, btn_onhover = clr['8'], None
         self.changing_itembox_list = ItemBoxList([
-            sc_1:=static_itembox((245, line0), (145, 45), clr['null'], 5, clr['txt0'],
+            sc_1:=static_itembox((160, line0), (230, 45), clr['null'], 5, clr['txt0'],
                            '0', 26, 8, centered='r'),
 
             # bn_0:=static_itembox((20, line2), (165, 50), clr['null'], 5),
@@ -331,6 +347,15 @@ class Menu:
             bm_d0:=static_itembox((225+135, line2+26), (30, 24), btn_offhover, 5, clr['txt1'],
                            '▼',16, centered='c'),
 
+            lb_3:=static_itembox((20, line4), (370, 50), clr['null'], 0, clr['txt0'],
+                                 '', 28, centered='c'),
+            bk_u1:=static_itembox((360, line4+10), (30, 14), btn_offhover, 0),
+            bk_u0:=static_itembox((360, line4), (30, 24), btn_offhover, 5, clr['txt1'],
+                                    '▲', 16, centered='c'),
+            bk_d1:=static_itembox((360, line4+26), (30, 14), btn_offhover, 0),
+            bk_d0:=static_itembox((360, line4+26), (30, 24), btn_offhover, 5, clr['txt1'],
+                                    '▼', 16, centered='c'),
+
             b_start:=static_itembox((20, 440), (370, 60), clr['32'], 10, clr['txt1'],
                                     'Start', 38, centered='c')
 
@@ -340,6 +365,7 @@ class Menu:
         self.score_display = sc_1
         self.label_1 = lb_1
         self.label_2 = lb_2
+        self.label_3 = lb_3
         self.button_list = ButtonList([
             Button(bn_u0, self.changing_itembox_list, show=[bn_u0, bn_u1],
                    color=[btn_offhover, btn_onhover], fn=self.addn, attr=(1,)),
@@ -349,18 +375,22 @@ class Menu:
                    color=[btn_offhover, btn_onhover], fn=self.addm, attr=(1,)),
             Button(bm_d0, self.changing_itembox_list, show=[bm_d0, bm_d1],
                    color=[btn_offhover, btn_onhover], fn=self.addm, attr=(-1,)),
+            Button(bk_u0, self.changing_itembox_list, show=[bk_u0, bk_u1],
+                   color=[btn_offhover, btn_onhover], fn=self.addk, attr=(1,)),
+            Button(bk_d0, self.changing_itembox_list, show=[bk_d0, bk_d1],
+                   color=[btn_offhover, btn_onhover], fn=self.addk, attr=(-1,)),
             Button(b_start, self.changing_itembox_list,
-                   fn=lambda x: g2048_init(x.set_n, x.set_m), attr=(self,))
+                   fn=lambda x: g2048_init(x.set_n, x.set_m, x.set_k), attr=(self,))
         ])
 menu_layout: Menu
 
 g2048_layout: Layout
 
-def getlayout(n, m):
-    global g_n, g_m, g2048_layout, g_addfactor
-    g_n, g_m = n, m
+def getlayout(n, m, k):
+    global g_n, g_m, g_k, g2048_layout, g_addfactor
+    g_n, g_m, g_k = n, m, k
     g_addfactor = 16
-    g2048_layout = Layout(n, m)
+    g2048_layout = Layout(n, m, k)
 
 def getmenu():
     global menu_layout, menubgscreen
@@ -570,11 +600,14 @@ def g2048_move(direction, show=0):
 basicfactor = 2
 def getrandomblock(p=0):
     # p = -100
+    if g_k == 1: p = -100
     if p == -100:
         r = random.randint(0, 99)
         return (2 if (r < 10) else 1) * basicfactor
     elif p == 0:
         r = random.randint(0, 99)
+        if g_k == 2 and r == 0 and random.randint(0, 5)==0:
+            return 1
         if r < 94:
             return (2 if (r<10) else 1)*basicfactor
         else:
@@ -692,7 +725,7 @@ def g2048_handle(events, show=0):
             g2048_current_score, g2048_best_score = numboard.add(x, g2048_current_score, g2048_best_score)
             #!
         elif name == 'over':
-            g2048_over = 1
+            # g2048_over = 1
             g2048_layout.over_itembox_list.sethide(False)
     if show==1: print(' '.join(f"{x}*{y}" for x, y in showtmp.items()))
 
@@ -723,22 +756,30 @@ def menu_process():
     menu_layout.changing_itembox_list.nextstate(display_screen)
 
 grid: Grid
-def g2048_init(n, m):
+def g2048_init(n, m, k):
     global grid, numboard
     global sched_queue, sched_cnt
     global anips
     global alive
     global g2048_current_score
+    global basicfactor
     global isgaming
     sched_queue = deque()
     sched_cnt = 0
-    getlayout(n, m)
+    getlayout(n, m, k)
     grid = Grid(g_n, g_m)
     g2048_current_score = 0
     numboard = NumBoard(g2048_layout)
     anips = 12
     if g_n*g_m > 400: anips = 8
     if g_n*g_m > 1000: anips = 4
+    if g_k == 2:
+        if random.randint(0, 2)==0:
+            basicfactor = -1
+        else:
+            basicfactor = 2**random.randint(random.randint(1, 3),
+                                            random.randint(6, random.randint(8, 12)))
+    else: basicfactor = 2
     isgaming = True
     g2048_layout.bg_itembox_list.blit_to(bgscreen)
     q2 = []
@@ -805,7 +846,7 @@ isgaming = False
 def UIloop():
     running = True
     init_screen()
-    g2048_init(4, 3)
+    g2048_init(4, 3, 0)
     getmenu()
     while running:
         mouse_pos = pygame.mouse.get_pos()
@@ -818,7 +859,7 @@ def UIloop():
                         if fn == 1:
                             g2048_input(ch)
                         elif fn == 2:
-                            g2048_init(g_n+1, g_m+1)
+                            g2048_init(g_n+1, g_m+1, g_k)
                     else:
                         pass
             elif event.type == pygame.MOUSEBUTTONDOWN:
