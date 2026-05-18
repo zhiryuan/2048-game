@@ -61,6 +61,7 @@ class ItemBox:
         self.updating = False
         self.changed = False
         self.realphaed = False
+        self.hide = False
         self.resized = False
         # self._vel = (0, 0)
     def _getcolor(self, color):
@@ -71,6 +72,7 @@ class ItemBox:
         return color[:3]+(int(color[3]*self.alpha+0.5),)
     def renewdisplay(self):
         self.display = pygame.Surface(self.size, pygame.SRCALPHA)
+        if self.hide: return
         pygame.draw.rect(self.display, self._getcolor(self.bgcolor), (0, 0, *self.size), border_radius=self.radius)
         font = font_in[self.fontsize]
         color = self._getcolor(self.color)
@@ -296,6 +298,12 @@ class Menu:
         self.label_2.setr(text=str(self.set_m), changed=1)
     def change_label3(self):
         self.label_3.setr(text=all_mode[self.set_k], changed=1)
+    def change_setting(self, setting=1):
+        b = bool(setting)
+        self.button_changing[0].setr(hide=b)
+        self.button_changing[1].setr(hide=not b)
+        self.button_changing[2].setr(hide=not b)
+
     def __init__(self):
         n_text_size = get_text_size('n=', 28)
         m_text_size = get_text_size('m=', 28)
@@ -371,7 +379,11 @@ class Menu:
                                     '▼', 16, centered='c'),
 
             b_start:=static_itembox((20, 440), (370, 60), clr['32'], 10, clr['txt1'],
-                                    'Start', 38, centered='c')
+                                    'Start', 38, centered='c'),
+            b_continue:=static_itembox((20, 440), (175, 60), clr['8'], 10, clr['txt1'],
+                                    'Continue', 32, centered='c').setr(hide=True),
+            b_restart:=static_itembox((215, 440), (175, 60), clr['32'], 10, clr['txt1'],
+                                    'Restart', 32, centered='c').setr(hide=True)
 
         ])
         self.changing_itembox_list.offset = game_offset
@@ -380,6 +392,7 @@ class Menu:
         self.label_1 = lb_1
         self.label_2 = lb_2
         self.label_3 = lb_3
+        self.button_changing = [b_start, b_continue, b_restart]
         self.button_list = ButtonList([
             Button(bn_u0, self.changing_itembox_list, show=[bn_u0, bn_u1],
                    color=[btn_offhover, btn_onhover], fn=self.addn, attr=(1,)),
@@ -394,7 +407,10 @@ class Menu:
             Button(bk_d0, self.changing_itembox_list, show=[bk_d0, bk_d1],
                    color=[btn_offhover, btn_onhover], fn=self.addk, attr=(-1,)),
             Button(b_start, self.changing_itembox_list,
-                   fn=lambda x: g2048_init(x.set_n, x.set_m, x.set_k), attr=(self,))
+                   fn=lambda x: g2048_init(x.set_n, x.set_m, x.set_k), attr=(self,)),
+            Button(b_restart, self.changing_itembox_list,
+                   fn=lambda x: g2048_init(x.set_n, x.set_m, x.set_k), attr=(self,)),
+            Button(b_continue, self.changing_itembox_list, fn=g2048_resume)
         ])
 menu_layout: Menu
 
@@ -402,7 +418,7 @@ g2048_layout: Layout
 
 def getlayout(n, m, k):
     global g_n, g_m, g_k, g2048_layout, g_addfactor
-    g_n, g_m, g_k = n, m, k
+    g_n, g_m, g_k = n, m, all_mode[k]
     g_addfactor = 16
     g2048_layout = Layout(n, m, k)
 
@@ -758,7 +774,7 @@ def g2048_process():
 
     display_screen.blit(bgscreen, (0, 0))
     grid.send_to_list(g2048_layout.grid_itembox_list) #!
-    # grid.con_output()
+    # grid.con_output(show=True)
     g2048_layout.grid_itembox_list.nextstate(display_screen)
     g2048_layout.changing_itembox_list.nextstate(display_screen)
     g2048_layout.over_itembox_list.nextstate(display_screen)
@@ -768,6 +784,7 @@ def menu_init():
     global isgaming
     isgaming = False
     menu_layout.setmns()
+    menu_layout.change_setting(1)
     menu_layout.bg_itembox_list.blit_to(menubgscreen)
     menu_layout.changing_itembox_list.nextstate(display_screen)
 
@@ -786,7 +803,7 @@ def g2048_init(n, m, k):
     global isgaming
     sched_queue = deque()
     sched_cnt = 0
-    getlayout(n, m, all_mode[k])
+    getlayout(n, m, k)
     grid = Grid(g_n, g_m)
     g2048_current_score = 0
     numboard = NumBoard(g2048_layout)
@@ -808,6 +825,10 @@ def g2048_init(n, m, k):
         q2.append(('over',))
     if q2:
         sched_queue.extend([q2])
+    g2048_process()
+def g2048_resume():
+    global isgaming
+    isgaming = True
     g2048_process()
 
 
@@ -835,7 +856,7 @@ class Button:
     def onclick(self):
         if self.fn is not None: self.fn(*self.attr)
     def inuse(self):
-        return not self.itemboxlist.hide
+        return (not self.itemboxlist.hide) and (not self.itembox.hide)
     def onhover(self, b):
         if b != self.hovered:
             self.hovered = b
@@ -959,9 +980,10 @@ def UIloop():
             g2048_layout.button_list.hover(mouse_pos)
             data, connect, _ = sockserver.get()
             if connect == 1:
-                    sockserver.write(to_msg(grid))
+                sockserver.write(to_msg(grid))
+                print("Connected")
             if data:
-                print(data)
+                # print(data)
                 if g2048_input(data) == 1:
                     sockserver.write(to_msg(grid))
                 else:
