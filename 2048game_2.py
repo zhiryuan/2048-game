@@ -180,7 +180,7 @@ grid_offset = (10, 120)
 grid_size = (390, 390)
 
 g_n: int; g_m: int; g_addfactor: int
-g_k: int
+g_k: str
 class Layout:
     def __init__(self, n, m, k):
         self.n, self.m = n, m
@@ -262,6 +262,7 @@ class Layout:
         return _add(_dproduct(pos, self.grid_lattice),
                     _toint(_dproduct(_add(pos, (1, 1)), self.grid_mean_gap)))
 
+all_mode = ['Regular', 'Featured', '???']
 class Menu:
     def addn(self, x):
         if self.set_n+x in range(1, 256):
@@ -272,7 +273,7 @@ class Menu:
             self.set_m += x
             self.change_label2()
     def addk(self, x):
-        if self.set_k-x in range(0, len(self.all_mode)):
+        if self.set_k-x in range(0, len(all_mode)):
             self.set_k -= x
             self.change_label3()
     @staticmethod
@@ -284,7 +285,7 @@ class Menu:
     def setmns(self):
         self.set_n = g_n
         self.set_m = g_m
-        self.set_k = g_k
+        self.set_k = all_mode.index(g_k) if g_k in all_mode else 0
         self.score_display.setr(text=self._tonum(g2048_best_score, 12), changed=1)
         self.change_label1()
         self.change_label2()
@@ -294,14 +295,13 @@ class Menu:
     def change_label2(self):
         self.label_2.setr(text=str(self.set_m), changed=1)
     def change_label3(self):
-        self.label_3.setr(text=self.all_mode[self.set_k], changed=1)
+        self.label_3.setr(text=all_mode[self.set_k], changed=1)
     def __init__(self):
         n_text_size = get_text_size('n=', 28)
         m_text_size = get_text_size('m=', 28)
         self.set_n = g_n
         self.set_m = g_m
-        self.set_k = g_k
-        self.all_mode = ['Featured', 'Regular', '???']
+        self.set_k = all_mode.index(g_k) if g_k in all_mode else 0
         self.bg_itembox_list = ItemBoxList([
             static_itembox((0, 0), game_size, clr['bg'], 10),
             static_itembox((10, 10), (390, 70), clr['null'], 5, clr['txt0'],
@@ -619,13 +619,13 @@ def g2048_move(direction, show=0):
 basicfactor = 2
 def getrandomblock(p=0):
     # p = -100
-    if g_k == 1: p = -100
+    if g_k == 'Regular': p = -100
     if p == -100:
         r = random.randint(0, 99)
         return (2 if (r < 10) else 1) * basicfactor
     elif p == 0:
         r = random.randint(0, 99)
-        if g_k == 2 and r == 0 and basicfactor<0 and random.randint(0, 10)==0:
+        if g_k == '???' and r == 0 and basicfactor<0 and random.randint(0, 10)==0:
             return 1
         if r < 94:
             return (2 if (r<10) else 1)*basicfactor
@@ -786,14 +786,14 @@ def g2048_init(n, m, k):
     global isgaming
     sched_queue = deque()
     sched_cnt = 0
-    getlayout(n, m, k)
+    getlayout(n, m, all_mode[k])
     grid = Grid(g_n, g_m)
     g2048_current_score = 0
     numboard = NumBoard(g2048_layout)
     anips = 12
     if g_n*g_m > 400: anips = 8
     if g_n*g_m > 1000: anips = 4
-    if g_k == 2:
+    if g_k == '???':
         if random.randint(0, 2)==0:
             basicfactor = -1
         else:
@@ -930,7 +930,7 @@ sockserver: SockServer
 def UIloop():
     running = True
     init_screen()
-    g2048_init(4, 4, 1)
+    g2048_init(4, 4, 0)
     getmenu()
     sockserver = SockServer()
     while running:
