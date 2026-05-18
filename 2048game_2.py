@@ -2,6 +2,7 @@ from typing import Optional
 import pygame
 from collections import deque
 import random
+import socket, os, select
 
 
 pygame.init()
@@ -182,10 +183,11 @@ g_n: int; g_m: int; g_addfactor: int
 g_k: int
 class Layout:
     def __init__(self, n, m, k):
+        self.n, self.m = n, m
         self.grid_lattice = ((390 - 30 * min(m, 4) // 4) // m, (390 - 30 * min(n, 4) // 4) // n)
 
         self.grid_mean_gap = _dproduct(_sub(grid_size, _dproduct(self.grid_lattice, (m, n))), (1/(m+1), 1/(n+1)))
-        self.grid_radius = 1 + 16 // max(n, n)
+        self.grid_radius = 1 + 16 // max(n, m)
         self.bg_itembox_list = ItemBoxList([
             static_itembox((0, 0), game_size, clr['bg'], 10),
             static_itembox((10, 10), (390, 70), clr['bg'], 5, clr['txt0'],
@@ -215,6 +217,18 @@ class Layout:
         ])
         self.over_itembox_list.offset = _add(_ldiv(_sub(screen_size, game_size), 2), grid_offset)
         self.over_itembox_list.hide = True
+
+        self.pause_itembox_list = ItemBoxList([
+            static_itembox((0, 0), grid_size, clr['fog'], min(self.grid_radius, 5) * 2, clr['txt0'],
+                           'Pause..', 60, 10, centered='cx').setr(text_pos=(1 / 2, 1 / 3)),
+            static_itembox((125, 195), (140, 40), clr['8'], 5, clr['txt1'],
+                                       'menu', 30, 5, centered='c'),
+            static_itembox((125, 245), (140, 40), clr['32'], 5, clr['txt1'],
+                                       'restart', 30, 5, centered='c'),
+
+        ])
+        self.pause_itembox_list.offset = _add(_ldiv(_sub(screen_size, game_size), 2), grid_offset)
+        self.pause_itembox_list.hide = True
 
         self.lnum_topleft, self.rnum_topleft, self.lrnum_size = (10, 80), (205, 80), (185, 30)
         self.lradd_movex, self.lradd_alpha, self.lradd_dalpha, self.lradd_anilen = (0, -30), 0.7, -0.01, 24
@@ -258,9 +272,9 @@ class Menu:
             self.set_m += x
             self.change_label2()
     def addk(self, x):
-        self.set_k -= x
-        self.set_k %= len(self.all_mode)
-        self.change_label3()
+        if self.set_k-x in range(0, len(self.all_mode)):
+            self.set_k -= x
+            self.change_label3()
     @staticmethod
     def _tonum(x, l):
         ret = f'{x}'
@@ -461,18 +475,23 @@ def to_str(x):
         if x == -3: return '×0'
         return '×'+str(-x)
     return str(x)
-def grid_palette(s, layout):
-    if s in clr: return clr[s], clr['txt0' if s in txt0 else 'txt1']
-    return clr['default'], clr['txt1']
-def grid_font(s, layout):
-    return min(layout.grid_lattice[0]*5//3 // max(len(s), 4), layout.grid_lattice[1]*4//9, 100)
 
 class GridBox:
+    def grid_palette(self, s):
+        if s in clr: return clr[s], clr['txt0' if s in txt0 else 'txt1']
+        return clr['default'], clr['txt1']
+    def grid_font(self, s):
+        n, m = self.layout.n, self.layout.m
+        lx, ly = self.layout.grid_lattice
+        maxx, maxy = lx * 1.7 / max(len(s)+0.2, 3.6), ly * (0.4+0.02*min(n, 10))
+        bdx, bdy = 20, 20
+        return int(min(maxx, maxy, (3*maxx+bdx)/4, (3*maxy+bdy)/4, 100))
+
     def set_to(self, pos, x):
         self.x = x
         s = to_str(x)
-        c1, c2 = grid_palette(s, self.layout)
-        fnt = grid_font(s, self.layout)
+        c1, c2 = self.grid_palette(s)
+        fnt = self.grid_font(s)
         gridpos = self.layout.getpos(pos)
         self.bind = dynamic_itembox(self.bind, gridpos, self.layout.grid_lattice, c1, self.layout.grid_radius, c2, s, fnt, 0, 'c')
     def __init__(self, pos, x, layout): # plan + lazy deleting
@@ -606,7 +625,7 @@ def getrandomblock(p=0):
         return (2 if (r < 10) else 1) * basicfactor
     elif p == 0:
         r = random.randint(0, 99)
-        if g_k == 2 and r == 0 and random.randint(0, 5)==0:
+        if g_k == 2 and r == 0 and basicfactor<0 and random.randint(0, 10)==0:
             return 1
         if r < 94:
             return (2 if (r<10) else 1)*basicfactor
@@ -677,10 +696,10 @@ SchedEnd = -1
 
 def g2048_input(key): #!
     global alive, sched_cnt
-    if not alive: return
+    if not alive: return -1
     di = di_map[key]
     b, q, q2 = g2048_move(di)
-    if not b: return
+    if not b: return 0
     alive = g2048_addnew(q2)
     if not alive:
         q2.append(('over',))
@@ -690,6 +709,7 @@ def g2048_input(key): #!
         sched_queue.extend([q2]+[None]*(anips-3))
     sched_queue.extend([None]*2+[SchedEnd])
     sched_cnt += 1
+    return 1
 
 sched_queue: deque
 sched_cnt: int
@@ -778,7 +798,7 @@ def g2048_init(n, m, k):
             basicfactor = -1
         else:
             basicfactor = 2**random.randint(random.randint(1, 3),
-                                            random.randint(6, random.randint(8, 12)))
+                                            random.randint(4, random.randint(6, 14)))
     else: basicfactor = 2
     isgaming = True
     g2048_layout.bg_itembox_list.blit_to(bgscreen)
@@ -843,11 +863,76 @@ class ButtonList:
 
 button_list: ButtonList
 isgaming = False
+
+def to_msg(grid: Grid|None):
+    if grid is None:
+        return 'still\n'
+    buf = ['move', f'{grid.n} {grid.m}']
+    for i in range(grid.n):
+        buf.append(' '.join(str(grid[i, j]) for j in range(grid.m)))
+    buf.append('')
+    return '\n'.join(buf)
+
+SOCK_PATH = '/tmp/2048game.sock'
+class SockServer:
+    def __init__(self):
+        if os.path.exists(SOCK_PATH):
+            os.unlink(SOCK_PATH)
+        self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.server.bind(SOCK_PATH)
+        self.server.listen(1)
+        self.client = None
+    def write(self, msg):
+        try:
+            self.client.send(msg.encode())
+        except BrokenPipeError:
+            self.pipe_error()
+    def pipe_error(self):
+        self.disconnect()
+    def disconnect(self):
+        self.client.close()
+        self.client = None
+    def connect(self, accept=True):
+        if accept:
+            self.client, _ = self.server.accept()
+        else:
+            pass
+    def get(self):
+        rlist, _, _ = select.select([self.server] + ([self.client] if self.client else []),
+                                    [], [], 0)
+        data = None
+        connected, disconnected = 0, 0
+        for sock in rlist:
+            if sock is self.server:
+                if not self.client:
+                    self.connect()
+                    connected = 1
+                else:
+                    self.connect(False)
+                    connected = 2
+            else:
+                try:
+                    data = self.client.recv(4096)
+                except BrokenPipeError:
+                    self.pipe_error()
+                if not data:
+                    data = None
+                    self.disconnect()
+                    disconnected = 1
+                else:
+                    data = data.decode()
+        return data, connected, disconnected
+    def __del__(self):
+        self.server.close()
+        os.unlink(SOCK_PATH)
+sockserver: SockServer
+
 def UIloop():
     running = True
     init_screen()
-    g2048_init(4, 3, 0)
+    g2048_init(4, 4, 1)
     getmenu()
+    sockserver = SockServer()
     while running:
         mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
@@ -872,7 +957,18 @@ def UIloop():
             g2048_input('wasd'[aa])'''
             # plan: lazy updating
             g2048_layout.button_list.hover(mouse_pos)
+            data, connect, _ = sockserver.get()
+            if connect == 1:
+                    sockserver.write(to_msg(grid))
+            if data:
+                print(data)
+                if g2048_input(data) == 1:
+                    sockserver.write(to_msg(grid))
+                else:
+                    sockserver.write(to_msg(None))
+
             g2048_process()
+
             pygame.display.flip()
         else:
             menu_layout.button_list.hover(mouse_pos)
