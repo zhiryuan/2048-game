@@ -500,31 +500,32 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
               << "Press Ctrl+C to stop.\n" << std::endl;
 
     TranspositionTable tt(tt_mb);
-    std::string recv_buf;
-    char tmp[4096];
+    char buf[8192];
     int move_count = 0;
 
     while (true) {
-        // Receive data
-        int n = (int)recv(sock, tmp, sizeof(tmp) - 1, 0);
-        if (n <= 0) {
-            if (n == 0) std::cout << "Game disconnected.\n";
-            else perror("recv");
-            break;
+        // Receive board state (blocking read, one message at a time)
+        int total = 0;
+        int msg_end = -1;
+        while (msg_end < 0) {
+            int n = (int)recv(sock, buf + total, sizeof(buf) - 1 - total, 0);
+            if (n <= 0) {
+                if (n == 0) std::cout << "Game disconnected.\n";
+                else perror("recv");
+                goto done;
+            }
+            total += n;
+            buf[total] = '\0';
+            // Look for end of message: "\n\n" (board) or "\n" at start ("still\n")
+            char* p = strstr(buf, "\n\n");
+            if (p) {
+                *p = '\0';  // terminate message at the double newline
+                msg_end = (int)(p - buf);
+            } else if (buf[0] == 's' && strncmp(buf, "still\n", 6) == 0) {
+                msg_end = 5; // "still" is 5 chars
+            }
         }
-        recv_buf.append(tmp, n);
-
-        // Extract complete messages (end with blank line "\n\n")
-        // Strip leading blank lines from previous message
-        while (!recv_buf.empty() && recv_buf[0] == '\n')
-            recv_buf.erase(0, 1);
-
-        // Find the LAST complete message in buffer
-        size_t end = recv_buf.rfind("\n\n");
-        if (end == std::string::npos) continue; // not complete yet
-
-        std::string msg = recv_buf.substr(0, end + 1); // include trailing \n
-        recv_buf.erase(0, end + 2); // remove consumed message
+        std::string msg(buf);
 
         // Check for "still" (game didn't accept move)
         if (msg.find("still") == 0) {
@@ -532,11 +533,8 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
             break;
         }
 
-        // Skip if not a "move" message
-        if (msg.find("move") != 0) continue;
-
         // Parse board
-        Board board = parse_board(msg);
+        Board board = parse_board(msg + "\n"); // add back one \n for parse_board
 
         // Find best move using expectimax
         float best_val = -1e30f;
@@ -575,6 +573,7 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
                   << "      " << std::flush;
     }
 
+done:
     close(sock);
     std::cout << "\nTotal moves: " << move_count << "\n";
     return 0;
