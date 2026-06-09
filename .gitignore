@@ -42,3 +42,7 @@ htmlcov/
 *.log
 *.db
 *.sqlite3
+
+# C++ 编译产物
+*.o
+2048_ai
