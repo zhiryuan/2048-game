@@ -500,25 +500,40 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
               << "Press Ctrl+C to stop.\n" << std::endl;
 
     TranspositionTable tt(tt_mb);
-    char buf[4096];
+    std::string recv_buf;
+    char tmp[4096];
     int move_count = 0;
 
     while (true) {
-        // Receive board state
-        int n = (int)recv(sock, buf, sizeof(buf) - 1, 0);
+        // Receive data
+        int n = (int)recv(sock, tmp, sizeof(tmp) - 1, 0);
         if (n <= 0) {
             if (n == 0) std::cout << "Game disconnected.\n";
             else perror("recv");
             break;
         }
-        buf[n] = '\0';
-        std::string msg(buf);
+        recv_buf.append(tmp, n);
 
-        // Check for "still" (invalid move, game didn't accept)
+        // Extract complete messages (end with blank line "\n\n")
+        // Strip leading blank lines from previous message
+        while (!recv_buf.empty() && recv_buf[0] == '\n')
+            recv_buf.erase(0, 1);
+
+        // Find the LAST complete message in buffer
+        size_t end = recv_buf.rfind("\n\n");
+        if (end == std::string::npos) continue; // not complete yet
+
+        std::string msg = recv_buf.substr(0, end + 1); // include trailing \n
+        recv_buf.erase(0, end + 2); // remove consumed message
+
+        // Check for "still" (game didn't accept move)
         if (msg.find("still") == 0) {
             std::cout << "Game over or invalid state.\n";
             break;
         }
+
+        // Skip if not a "move" message
+        if (msg.find("move") != 0) continue;
 
         // Parse board
         Board board = parse_board(msg);
