@@ -451,11 +451,13 @@ static Board parse_board(const std::string& msg) {
         for (int c = 0; c < m && c < 4; ++c) {
             int val;
             ss >> val;
-            // Map: Python value is log2(tile_value)
-            //   0=empty, 1=2, 2=4, ... ; negative=special
-            // Cap at 15 (32768)
-            int log2v = (val > 0) ? val : 0;
-            if (log2v > MAX_TILE_EXP) log2v = MAX_TILE_EXP;
+            // Game sends actual tile value (2,4,8,...); 0=empty; negative=special
+            // Convert to log2: __builtin_ctz(2)=1, ctz(4)=2, ctz(32)=5, etc.
+            int log2v = 0;
+            if (val > 0) {
+                log2v = __builtin_ctz(val);
+                if (log2v > MAX_TILE_EXP) log2v = MAX_TILE_EXP;
+            }
             board = set_cell(board, r, c, log2v);
         }
         // Consume remaining values if grid is larger
@@ -504,37 +506,29 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
     int move_count = 0;
 
     while (true) {
-        // Receive board state (blocking read, one message at a time)
-        int total = 0;
-        int msg_end = -1;
-        while (msg_end < 0) {
-            int n = (int)recv(sock, buf + total, sizeof(buf) - 1 - total, 0);
-            if (n <= 0) {
-                if (n == 0) std::cout << "Game disconnected.\n";
-                else perror("recv");
-                goto done;
-            }
-            total += n;
-            buf[total] = '\0';
-            // Look for end of message: "\n\n" (board) or "\n" at start ("still\n")
-            char* p = strstr(buf, "\n\n");
-            if (p) {
-                *p = '\0';  // terminate message at the double newline
-                msg_end = (int)(p - buf);
-            } else if (buf[0] == 's' && strncmp(buf, "still\n", 6) == 0) {
-                msg_end = 5; // "still" is 5 chars
-            }
+        // Receive board state (one recv, like cli_2048_not_ai.py)
+        int n = (int)recv(sock, buf, sizeof(buf) - 1, 0);
+        if (n <= 0) {
+            if (n == 0) std::cout << "Game disconnected.\n";
+            else perror("recv");
+            break;
         }
+        buf[n] = '\0';
+
+        // Trim trailing "\n\n" (board message terminator)
+        if (n >= 2 && buf[n-1] == '\n' && buf[n-2] == '\n')
+            buf[n-2] = '\0';
+
         std::string msg(buf);
 
-        // Check for "still" (game didn't accept move)
+        // Check for "still" (game over or invalid state)
         if (msg.find("still") == 0) {
-            std::cout << "Game over or invalid state.\n";
+            std::cout << "Game over.\n";
             break;
         }
 
         // Parse board
-        Board board = parse_board(msg + "\n"); // add back one \n for parse_board
+        Board board = parse_board(msg + "\n");
 
         // Find best move using expectimax
         float best_val = -1e30f;
@@ -568,12 +562,9 @@ static int play_mode(const NtupleNetwork& net, int depth, int tt_mb) {
         move_count++;
         int mt = 1 << max_tile(board);
         std::cout << "\r[" << move_count << "] max_tile=" << mt
-                  << "  move=" << move_ch << "  value="
-                  << std::fixed << std::setprecision(0) << best_val
-                  << "      " << std::flush;
+                  << "  move=" << move_ch << "      " << std::flush;
     }
 
-done:
     close(sock);
     std::cout << "\nTotal moves: " << move_count << "\n";
     return 0;
