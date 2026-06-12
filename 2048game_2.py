@@ -45,7 +45,7 @@ class ItemBox:
         self.end = (0, 0)
         self.startsize = (0, 0)
         self.endsize = (0, 0)
-        self.endstate = anips
+        self.endstate = 0
         self.state = self.endstate # auto animation
         self.bgcolor = bgcolor
         self.color = color
@@ -124,7 +124,7 @@ def dynamic_itembox(sf, topleft, size, bgcolor, radius, color=(0,0,0), text='', 
                  color=color, text=text, fontsize=font_size,
                  padding=padding, radius=radius)
     itembox.static = False; itembox.dynamic = True; itembox.zaxis = -1
-    itembox.centered = centered; itembox.state = itembox.endstate
+    itembox.centered = centered; itembox.state = itembox.endstate = 0
     itembox.updating = True; itembox.changed = True
     return itembox
 class ItemBoxList:
@@ -517,14 +517,14 @@ class GridBox:
         self.layout = layout
         self.set_to(pos, x)
     def setani_move(self, start, end):
-        self.bind.state = 0
+        self.bind.state, self.bind.endstate = 0, anips
         spos = self.layout.getpos(start)
         epos = self.layout.getpos(end)
         self.bind.topleft = spos
         self.bind.start = spos
         self.bind.end = epos
     def setani_resize(self, pos, start = 0.0, end = 1.0):
-        self.bind.state = 0
+        self.bind.state, self.bind.endstate = 0, anips
         ssiz = _toint(_mul(self.layout.grid_lattice, start))
         esiz = _toint(_mul(self.layout.grid_lattice, end))
         cpos = _add(self.layout.getpos(pos), _ldiv(self.layout.grid_lattice, 2))
@@ -779,6 +779,12 @@ def g2048_process():
     g2048_layout.changing_itembox_list.nextstate(display_screen)
     g2048_layout.over_itembox_list.nextstate(display_screen)
 
+def reset_anips(x):
+    global anips
+    while sched_queue:
+        g2048_handle(sched_queue.popleft())
+    anips = x
+
 
 def menu_init():
     global isgaming
@@ -793,6 +799,7 @@ def menu_process():
     menu_layout.changing_itembox_list.nextstate(display_screen)
 
 grid: Grid
+anips_default = 12
 def g2048_init(n, m, k):
     global grid, numboard
     global sched_queue, sched_cnt
@@ -801,6 +808,7 @@ def g2048_init(n, m, k):
     global g2048_current_score
     global basicfactor
     global isgaming
+    global anips_default
     sched_queue = deque()
     sched_cnt = 0
     getlayout(n, m, k)
@@ -810,6 +818,7 @@ def g2048_init(n, m, k):
     anips = 12
     if g_n*g_m > 400: anips = 8
     if g_n*g_m > 1000: anips = 4
+    anips_default = anips
     if g_k == '???':
         if random.randint(0, 2)==0:
             basicfactor = -1
@@ -948,6 +957,7 @@ class SockServer:
         os.unlink(SOCK_PATH)
 sockserver: SockServer
 
+
 def UIloop():
     running = True
     init_screen()
@@ -965,7 +975,11 @@ def UIloop():
                         if fn == 1:
                             g2048_input(ch)
                         elif fn == 2:
-                            g2048_init(g_n+1, g_m+1, g_k)
+                            # g2048_init(g_n+1, g_m+1, g_k)
+                            if anips != 2:
+                                reset_anips(2)
+                            else:
+                                reset_anips(anips_default)
                     else:
                         pass
             elif event.type == pygame.MOUSEBUTTONDOWN:
