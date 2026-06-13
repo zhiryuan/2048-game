@@ -4,11 +4,23 @@ from collections import deque
 import random
 import socket, os, select
 
+clr = {
+    'txt0': (119, 110, 101), 'txt1': (255, 255, 255),
+    'bg': (250, 248, 239), 'grid': (187, 173, 160), 'line': (224, 212, 208),
+    '0': (205, 193, 180), '2': (238, 228, 216), '4': (237, 224, 200), '8': (242, 177, 121),
+    '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
+    '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
+    '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
+    '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (192, 32, 24),
+    'fog': (255, 255, 255, 128),
+    'in1': (244, 238, 232),
+    'null': (0, 0, 0, 0),
+    'default': (32, 32, 32)
+}
+txt0 = {
+    '2', '4', '#'
+}
 
-pygame.init()
-screen_size = (600, 600)
-display_screen = pygame.display.set_mode(size=screen_size)
-time_clock = pygame.time.Clock()
 def _add(x, y): return x[0]+y[0], x[1]+y[1]
 def _sub(x, y): return x[0]-y[0], x[1]-y[1]
 def _ldiv(x, d): return x[0]//d, x[1]//d
@@ -17,18 +29,33 @@ def _transpose(x): return x[1], x[0]
 def _toint(x): return int(x[0]), int(x[1])
 def _simtoint(x): return int(x[0]+.5), int(x[1]+.5)
 def _dproduct(x, y): return x[0]*y[0], x[1]*y[1]
-'''font_names = ['Calibri', 'Microsoft YaHei', 'Arial']
-def find_font():
-    for name in font_names:
-        if pygame.font.match_font(name):
-            return name
-    return None'''
+
+pygame.init()
+
 default_font_size = 36
 font_in = {x:pygame.font.Font('Arial.ttf', x) for x in range(120)}
 def get_text_size(text, font_size, color=(0, 0, 0)):
     font = font_in[font_size]
     font_surface = font.render(text, True, color)
     return font_surface.get_size()
+
+icon_size = (64, 64)
+icon = pygame.Surface(icon_size, pygame.SRCALPHA)
+pygame.draw.rect(icon, clr['2048'], (0, 0, *icon_size), border_radius=12)
+icon_text = font_in[24].render('2048', True, clr['txt1'])
+icon.blit(icon_text, icon_text.get_rect(center=_ldiv(icon_size, 2)))
+
+screen_size = (600, 600)
+pygame.display.set_icon(icon)
+pygame.display.set_caption("2048")
+display_screen = pygame.display.set_mode(size=screen_size)
+time_clock = pygame.time.Clock()
+'''font_names = ['Calibri', 'Microsoft YaHei', 'Arial']
+def find_font():
+    for name in font_names:
+        if pygame.font.match_font(name):
+            return name
+    return None'''
 
 anips = 12
 class ItemBox:
@@ -156,23 +183,6 @@ class ItemBoxList:
     def sethide(self, hide):
         self.hide = hide
 
-clr = {
-    'txt0': (119, 110, 101), 'txt1': (255, 255, 255),
-    'bg': (250, 248, 239), 'grid': (187, 173, 160), 'line': (224, 212, 208),
-    '0': (205, 193, 180), '2': (238, 228, 216), '4': (237, 224, 200), '8': (242, 177, 121),
-    '16': (245, 149, 99), '32': (246, 124, 95), '64': (246, 94, 59), '128': (237, 207, 114),
-    '256': (237, 204, 97), '512': (237, 200, 80), '1024': (237, 197, 63), '2048': (237, 194, 46),
-    '4096': (139, 0, 139), '8192': (75, 0, 130), '16384': (232, 54, 99), '32768': (168, 15, 53),
-    '#': (0, 0, 0, 0), '×2': (4, 30, 83), '×4': (89, 194, 225), '×0': (192, 32, 24),
-    'fog': (255, 255, 255, 128),
-    'in1': (244, 238, 232),
-    'null': (0, 0, 0, 0),
-    'default': (32, 32, 32)
-}
-txt0 = {
-    '2', '4', '#'
-}
-
 
 default_choice = (4, 4)
 
@@ -267,11 +277,11 @@ class Layout:
 all_mode = ['Regular', 'Featured', '???']
 class Menu:
     def addn(self, x):
-        if self.set_n+x in range(1, 256):
+        if self.set_n+x in range(1, 101):
             self.set_n += x
             self.change_label1()
     def addm(self, x):
-        if self.set_m+x in range(1, 256):
+        if self.set_m+x in range(1, 101):
             self.set_m += x
             self.change_label2()
     def addk(self, x):
@@ -475,14 +485,12 @@ numboard: NumBoard
 
 # g_n, g_m, g_addfactor, grid_offset, grid_size, grid_lattice, grid_mean_gap, grid_radius = getlayout(4, 4)
 
-
 bgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 menubgscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 # aniscreen = pygame.Surface(screen_size, pygame.SRCALPHA)
 def init_screen():
     display_screen.fill(clr['2'])
     display_screen.blit(bgscreen, (0, 0))
-
 
 
 def to_str(x):
@@ -499,7 +507,7 @@ class GridBox:
     def grid_font(self, s):
         n, m = self.layout.n, self.layout.m
         lx, ly = self.layout.grid_lattice
-        maxx, maxy = lx * 1.7 / max(len(s)+0.2, 3.6), ly * (0.4+0.02*min(n, 10))
+        maxx, maxy = lx * 1.75 / max(len(s)+0.2, 3.6 - min(m, 20)/100), ly * (0.4+0.02*min(n, 10)) * (1 + min(n, 20)/100)
         bdx, bdy = 20, 20
         return int(min(maxx, maxy, (3*maxx+bdx)/4, (3*maxy+bdy)/4, 100))
 
@@ -817,7 +825,9 @@ def g2048_init(n, m, k):
     numboard = NumBoard(g2048_layout)
     anips = 12
     if g_n*g_m > 400: anips = 8
-    if g_n*g_m > 1000: anips = 4
+    if g_n*g_m > 1000: anips = 6
+    if g_n*g_m > 2000: anips = 4
+    if g_n*g_m > 4000: anips = 2
     anips_default = anips
     if g_k == '???':
         if random.randint(0, 2)==0:
@@ -839,7 +849,6 @@ def g2048_resume():
     global isgaming
     isgaming = True
     g2048_process()
-
 
 g2048_key_map = {pygame.K_a: (1, 'a'), pygame.K_s: (1, 's'), pygame.K_d: (1, 'd'), pygame.K_w: (1, 'w'),
                  pygame.K_LEFT: (1, 'a'), pygame.K_DOWN: (1, 's'), pygame.K_RIGHT: (1, 'd'), pygame.K_UP: (1, 'w'),
@@ -956,7 +965,6 @@ class SockServer:
         self.server.close()
         os.unlink(SOCK_PATH)
 sockserver: SockServer
-
 
 def UIloop():
     running = True

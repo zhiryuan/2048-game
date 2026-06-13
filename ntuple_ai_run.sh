@@ -10,5 +10,5 @@ if [ ! -S "$SOCK" ]; then
     while [ ! -S "$SOCK" ]; do sleep 0.5; done
 fi
 
-echo "Starting AI (depth=2, 256MB TT)..."
-./2048_ai play --depth 2 --tt-size 256 --load cpp_ai_15min.bin
+echo "Starting AI (depth=3, 256MB TT)..."
+./2048_ai play --depth 3 --tt-size 256 --load cpp_ai_15min.bin

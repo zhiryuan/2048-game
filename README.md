@@ -24,15 +24,19 @@ pygame 似乎暂不支持 Python ≥ 3.14，高版本需要用pygame-ce。
 
 ![截屏2026-06-13 20.57.34](https://cdn.jsdelivr.net/gh/zhiryuan/image-host@main/img/%E6%88%AA%E5%B1%8F2026-06-13%2020.57.34.png)
 
+![截屏2026-06-13 22.24.23](https://cdn.jsdelivr.net/gh/zhiryuan/image-host@main/img/%E6%88%AA%E5%B1%8F2026-06-13%2022.24.23.png)
+
 点击`menu`按钮，进入如下的菜单页面。你可以点击`Size`栏里`n`、`m`右边的上/下按钮，调整网格大小，
 点击`Mode`栏里的上/下按钮，调整游戏模式，然后点击`Restart`开始新游戏（不会保留之前的进度）。
 或者，你也可以按`Continue`回到原来的游戏继续。
 游戏支持`n≠m`的情况，并且花了一些工夫调整各种大小的网格显示，让缝隙宽度、字体大小都比较合适，
 n,m可以从1取到100，都能流畅运行，n*m较大时会自动降帧。
 
-![截屏2026-06-13 20.57.49](https://cdn.jsdelivr.net/gh/zhiryuan/image-host@main/img/%E6%88%AA%E5%B1%8F2026-06-13%2020.57.49.png)
+![截屏2026-06-13 22.22.40](https://cdn.jsdelivr.net/gh/zhiryuan/image-host@main/img/%E6%88%AA%E5%B1%8F2026-06-13%2022.22.40.png)
 
 ![截屏2026-06-13 21.13.19](https://cdn.jsdelivr.net/gh/zhiryuan/image-host@main/img/%E6%88%AA%E5%B1%8F2026-06-13%2021.13.19.png)
+
+
 
 项目除了`cpp_ai`文件夹里实现的AI算法借助deepseek(in claude code)完成，其他部分都是手写的，
 核心的2048game_2.py从配置字体、绘制圆角方块、实现2048动画、处理时序、实现2048逻辑、
