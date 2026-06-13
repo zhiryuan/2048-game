@@ -1,5 +1,7 @@
 # 2048-game
 
+仓库地址：https://github.com/zhiryuan/2048-game
+
 ## 环境
 
 | 组件 | 版本    |
@@ -10,12 +12,51 @@
 
 pygame 似乎暂不支持 Python ≥ 3.14，高版本需要用pygame-ce。
 
-## 简介
+## 背景、简介
+
+### 1. 项目背景
+
+作为古法编程爱好者，在数算B课上看到一道模拟2048的题目，觉得很有意思，希望能不借助AI Coding自己写一写。起初，弄清楚pygame的逻辑后，写了一个有点复杂的类，用代码绘制了出来游戏背景。又过了几天，加上了数字方块的绘制，把各种颜色存在一个字典里，数字方块的管理也写成一个类。接着，把移动、判断胜负的逻辑加上。实现动画是困难的部分，搞了一个队列表示每刻需要处理的动画，然后去一点点处理。经过一两天调试后，竟然真的能跑了。
+
+大喜，然后加上各种有意思的内容，包括`×2` `×4` `×0` `#`这些方块。这又花了几天时间。
+
+后来看到要求加上游戏AI，希望能在常规模式下跑AI，于是做了一个menu界面，选择大小、模式。这个花了我很久，主要是UI界面有很多细节，按钮事件也不太好搞。另外，由于建立在之前代码基础上，之前代码也都是手写的，一开始还很优雅，加着加着东西就乱了，尤其是之前定义很多全局变量不太好处理。并且之前没写过这么长的代码，手写的代码没有组织好，是在改的过程中一点点学应该怎么写的。
+
+然后为了向外接东西，搞了一个socket的连接，写server和client，跑通了，可以对接一个简单的wasd的AI（比随机AI好很多），还可以在不修改原代码的基础上，对接一个命令行控制的代码。
+
+游戏AI很难搞，正好deepseek出v4降价，就下了一个claude code，接入deepseek，查网上资料，跟它博弈好几天，做出的算法一直卡在1024上不去。后来让他参考github上开源代码的思路，发现原来方法中的几个关键问题，最后跑通了，几十分钟的训练就能跑到8192，再训练一下还能跑到16384，可惜不小心把40min训练的那个文件覆盖了，现在只有一个15min的版本，临近期末，做下README就交了吧。
+
+### 2. 项目简介
 
 本项目是一个具有流畅动画效果、界面制作精巧、提供多种模式、具有丰富彩蛋的2048小游戏。
 同时实现了多种游戏AI，通过socket server接口与外部AI对接，使得AI逻辑与游戏本体分离，
 可以在不重新编译原有游戏代码的基础上，配备若干个用任意语言编写的AI。
 基于n-tuple network + TD afterstate learning的AI目前可以在4x4常规模式稳定玩到8192。
+
+### 3. 项目结构
+
+主要文件如下
+
+```
+2048-game/
+├── 2048game_2.py          # Pygame GUI 游戏（含 Unix socket server）
+├── ntuple_ai_run.sh       # 启动 ntuple-AI
+├── cyclic_2048_ai.py      # 启动 简单wasd循环AI
+├── cli_2048_not_ai.py     # 启动 命令行界面
+├── cpp_ai/                # C++ N-tuple TD-learning AI
+│   ├── 2048_ai            # 编译后二进制
+│   ├── types.hpp          # 类型 / RNG / 窗口分桶
+│   ├── board.hpp          # 64-bit bitboard / 移动 LUT / 游戏逻辑
+│   ├── ntuple.hpp         # N-tuple 网络 / 权重保存加载
+│   ├── main.cpp           # 训练 / 评估 / play 三模式
+│   ├── cpp_ai_15min.bin   # 预训练权重 (8.5 MB)
+│   └── Makefile
+├── Arial.ttf
+├── pyproject.toml
+└── README.md
+```
+
+## 运行指南
 
 ### 游戏界面与内容
 
@@ -62,7 +103,9 @@ n,m可以从1取到100，都能流畅运行，n*m较大时会自动降帧。
 | cyclic_2048_ai.py  | 最简单的wasd轮询AI                                  | 任意大小和模式    |
 | cli_2048_not_ai.py | 测试连接用，可在运行后从命令行输入`w/a/s/d`控制游戏 | 任意大小和模式    |
 
-### 游戏模式
+### 游戏模式与按键
+
+#### 游戏模式
 
 在menu里可选择如下模式：
 
@@ -82,7 +125,7 @@ n,m可以从1取到100，都能流畅运行，n*m较大时会自动降帧。
 
 `×0`与任意数合成后将其变为`#`，但是会获得大量分数
 
-### 按键控制
+#### 按键控制
 
 | 键    | 动作                   |
 | ----- | ---------------------- |
@@ -92,31 +135,9 @@ n,m可以从1取到100，都能流畅运行，n*m较大时会自动降帧。
 | D / → | 右                     |
 | Esc   | 加速动画，再次按下恢复 |
 
-
-## 项目结构
-
-```
-2048-game/
-├── 2048game_2.py          # Pygame GUI 游戏（含 Unix socket server）
-├── ntuple_ai_run.sh       # 启动 ntuple-AI
-├── cyclic_2048_ai.py      # 启动 简单wasd循环AI
-├── cli_2048_not_ai.py     # 启动 命令行界面
-├── cpp_ai/                # C++ N-tuple TD-learning AI
-│   ├── 2048_ai            # 编译后二进制
-│   ├── types.hpp          # 类型 / RNG / 窗口分桶
-│   ├── board.hpp          # 64-bit bitboard / 移动 LUT / 游戏逻辑
-│   ├── ntuple.hpp         # N-tuple 网络 / 权重保存加载
-│   ├── main.cpp           # 训练 / 评估 / play 三模式
-│   ├── cpp_ai_15min.bin   # 预训练权重 (8.5 MB)
-│   └── Makefile
-├── Arial.ttf
-├── pyproject.toml
-└── README.md
-```
-
 ## C++ AI部分
 
-基于 [moporgic/TDL2048](https://github.com/moporgic/TDL2048) 的 n-tuple network + TD afterstate learning，这一部分借助AI、查阅网上资料完成。
+参考 [moporgic/TDL2048](https://github.com/moporgic/TDL2048) 实现的 n-tuple network + TD afterstate learning，这一部分是借助AI（deepseek in claude code）、查阅网上资料完成的。
 
 使用cpp+多核并行加速，极大提升了运行效率，是python+并行的5~6倍，只需经过15min训练，便可以超过人类平均水平（以50%以上概率跑到8192）。
 
